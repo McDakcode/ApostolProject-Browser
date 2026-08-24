@@ -1,6 +1,6 @@
 # AP Browser (ApostolProject Browser)
 
-[English](README.md) | [Русский](README.ru.md) | **中文** | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
+[Русский](README.md) | [English](README.en.md) | **中文** | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
 
 一款注重隐私的桌面浏览器，将**浏览器 + 工作区 + 知识库 + AI** 融合于单一应用。非 Electron——基于 **Tauri 2 / Rust** 构建，使用原生 WebView2 标签页。
 

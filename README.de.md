@@ -1,6 +1,6 @@
 # AP Browser (ApostolProject Browser)
 
-[English](README.md) | [Русский](README.ru.md) | [中文](README.zh-CN.md) | [Español](README.es.md) | **Deutsch** | [Français](README.fr.md)
+[Русский](README.md) | [English](README.en.md) | [中文](README.zh-CN.md) | [Español](README.es.md) | **Deutsch** | [Français](README.fr.md)
 
 Ein datenschutzorientierter Desktop-Browser, der **Browser + Arbeitsbereich + Wissensbasis + KI** in einer einzigen App vereint. Kein Electron — gebaut mit **Tauri 2 / Rust** und nativen WebView2-Tabs.
 

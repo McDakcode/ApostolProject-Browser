@@ -1,66 +1,66 @@
 # AP Browser (ApostolProject Browser)
 
-**English** | [Русский](README.ru.md) | [中文](README.zh-CN.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
+**Русский** | [English](README.en.md) | [中文](README.zh-CN.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
 
-A privacy-focused desktop browser that combines **browser + workspace + knowledge base + AI** in one app. Not Electron — built on **Tauri 2 / Rust** with native WebView2 tabs.
+Браузер нового поколения с упором на приватность: **браузер + рабочая среда + база знаний + AI** в одном приложении. Не Electron — построен на **Tauri 2 / Rust** с нативными вкладками WebView2.
 
-> Early development (v0.1.0), Windows only for now.
+> Ранняя стадия разработки (v0.1.0), пока только Windows.
 
-## Features
+## Возможности
 
-- **Tabs** — native WebView2 tabs in a single shell window: sleeping tabs, drag & drop, split view, favicons, collapsible sidebar
-- **Notes** — Markdown editor with preview, images, freehand drawing, LaTeX subset (`$...$`), folders, `.md` export
-- **Knowledge graph** — infinite canvas with physics layout, note cards, links, undo/redo, PNG export
-- **Workspaces & profiles** — isolated profiles by storage folder, per-workspace tab sets
-- **Vault** — password manager with AES-256-GCM encryption and Argon2id key derivation, CSV import/export
-- **History & bookmarks** — SQLite-backed, per-profile history, omnibox suggestions
-- **Command palette** — Ctrl+K, English/Russian keyword search
-- **AI chat** — OpenAI-compatible providers and local Ollama
-- **Downloads interception**, dark/light themes, UI customization, onboarding tour
+- **Вкладки** — нативные вкладки WebView2 в одном окне-шелле: спящие вкладки, drag & drop, разделение экрана, фавиконы, сворачиваемая боковая панель
+- **Заметки** — Markdown-редактор с превью, картинками, рисованием от руки, подмножеством LaTeX (`$...$`), папками, экспортом `.md`
+- **Граф знаний** — бесконечный холст с физической раскладкой, карточками заметок, связями, undo/redo, экспортом PNG
+- **Воркспейсы и профили** — изолированные профили по папкам хранилища, наборы вкладок на каждый воркспейс
+- **Сейф** — менеджер паролей: шифрование AES-256-GCM, выведение ключа Argon2id, импорт/экспорт CSV
+- **История и закладки** — на SQLite, история по профилям, подсказки в омнибоксе
+- **Палитра команд** — Ctrl+K, поиск по ключевым словам на русском и английском
+- **AI чат** — провайдеры, совместимые с OpenAI, и локальная Ollama
+- **Перехват загрузок**, тёмная/светлая темы, кастомизация интерфейса, обучающий тур
 
-## Tech stack
+## Технологии
 
-| Layer | Tech |
+| Слой | Технология |
 |---|---|
-| Backend | Rust workspace (`crates/*`), Tauri v2, wry/WebView2 |
-| Frontend | Vanilla HTML/CSS/JS — no bundler, no npm, no frameworks |
-| Data | `%APPDATA%/dev.apb.browser/` (SQLite, Markdown, JSON) |
+| Бэкенд | Rust workspace (`crates/*`), Tauri v2, wry/WebView2 |
+| Фронтенд | Vanilla HTML/CSS/JS — без бандлера, без npm, без фреймворков |
+| Данные | `%APPDATA%/dev.apb.browser/` (SQLite, Markdown, JSON) |
 
-The frontend is embedded into the binary at build time (`frontendDist = "../ui"`).
+Фронтенд вшивается в бинарник при сборке (`frontendDist = "../ui"`).
 
-## Build from source
+## Сборка из исходников
 
-Prerequisites: [Rust](https://rustup.rs) (stable, MSVC toolchain), WebView2 Runtime (preinstalled on Windows 10/11).
+Требования: [Rust](https://rustup.rs) (stable, тулчейн MSVC), WebView2 Runtime (предустановлен в Windows 10/11).
 
 ```powershell
 cd apps/desktop/src-tauri
 cargo build
-# run the debug build:
+# запуск дебаг-сборки:
 ../../target/debug/apb-desktop.exe
 ```
 
-## Project layout
+## Структура проекта
 
 ```
 apps/desktop/
-  src-tauri/        Rust backend (shell, pages, cmd/* domain commands)
-  ui/               Shell frontend (index.html + js modules, loaded in order)
-crates/             Domain crates: notes, graph data, vault, privacy,
+  src-tauri/        Rust-бэкенд (shell, pages, доменные команды cmd/*)
+  ui/               Фронтенд шелла (index.html + js-модули, грузятся по порядку)
+crates/             Доменные крейты: notes, граф, vault, privacy,
                     network, history, bookmarks, profiles, extensions, ai...
 ```
 
-## Roadmap
+## Планы
 
-1. Apply privacy engine to real traffic (tracker blocking / DNS / proxy layer)
-2. Extension runtime (content scripts)
-3. Localization beyond Russian
-4. Auto-updates (tauri-plugin-updater + GitHub Releases)
-5. NSIS installer
+1. Применить движок приватности к реальному трафику (блокировка трекеров / DNS / прокси-слой)
+2. Рантайм расширений (content scripts)
+3. Локализация помимо русской
+4. Автообновления (tauri-plugin-updater + GitHub Releases)
+5. Инсталлятор NSIS
 
-## Credits
+## Авторы
 
-Built by **MrDuck** (idea, product vision, design decisions, testing) and **Ox-Alpha** (AI software engineer — wrote most of the codebase).
+Создано **MrDuck** (идея, продуктовое видение, дизайн-решения, тестирование) и **Ox-Alpha** (ИИ-инженер — написал бо́льшую часть кодовой базы).
 
-## License
+## Лицензия
 
 [MIT](LICENSE)

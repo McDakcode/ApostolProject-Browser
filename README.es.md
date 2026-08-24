@@ -1,6 +1,6 @@
 # AP Browser (ApostolProject Browser)
 
-[English](README.md) | [Русский](README.ru.md) | [中文](README.zh-CN.md) | **Español** | [Deutsch](README.de.md) | [Français](README.fr.md)
+[Русский](README.md) | [English](README.en.md) | [中文](README.zh-CN.md) | **Español** | [Deutsch](README.de.md) | [Français](README.fr.md)
 
 Un navegador de escritorio centrado en la privacidad que combina **navegador + espacio de trabajo + base de conocimiento + IA** en una sola aplicación. Sin Electron: construido con **Tauri 2 / Rust** y pestañas nativas WebView2.
 
