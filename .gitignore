@@ -1,0 +1,21 @@
+# Rust / Cargo
+target/
+
+# Tauri generated schemas
+apps/desktop/src-tauri/gen/
+
+# Logs
+logs/
+*.log
+
+# Personal / local archives
+*.zip
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Editor junk
+.vscode/
+.idea/

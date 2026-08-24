@@ -1,0 +1,8 @@
+[package]
+name = "apb-storage"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rusqlite = { workspace = true }
+thiserror = { workspace = true }

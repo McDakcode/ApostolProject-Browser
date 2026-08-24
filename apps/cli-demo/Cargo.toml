@@ -1,0 +1,27 @@
+[package]
+name = "apb-cli-demo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+apb-storage = { path = "../../crates/storage" }
+apb-profiles = { path = "../../crates/profiles" }
+apb-bookmarks = { path = "../../crates/bookmarks" }
+apb-history = { path = "../../crates/history" }
+apb-notes = { path = "../../crates/notes" }
+apb-tabs = { path = "../../crates/tabs" }
+apb-commands = { path = "../../crates/commands" }
+apb-privacy = { path = "../../crates/privacy" }
+apb-network = { path = "../../crates/network" }
+apb-vault = { path = "../../crates/vault" }
+apb-ai = { path = "../../crates/ai" }
+apb-canvas = { path = "../../crates/canvas" }
+apb-extensions = { path = "../../crates/extensions" }
+
+uuid = { workspace = true }
+
+[[bin]]
+name = "apb-cli-demo"
+path = "src/main.rs"

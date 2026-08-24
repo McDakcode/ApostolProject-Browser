@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/storage",
+    "crates/profiles",
+    "crates/bookmarks",
+    "crates/history",
+    "crates/tabs",
+    "crates/commands",
+    "crates/notes",
+    "crates/privacy",
+    "crates/network",
+    "crates/vault",
+    "crates/ai",
+    "crates/canvas",
+    "crates/extensions",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["APB Project"]
+license = "MIT"
+
+[workspace.dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "=1.10.0", features = ["v4", "serde"] }
+getrandom = "=0.2.15"
+time = "=0.3.36"
+aes-gcm = "0.10"
+argon2 = "0.5"
+hmac = "0.12"
+sha1 = "0.10"
+base64ct = "=1.6.0"
+ureq = { version = "2", default-features = false, features = ["native-tls", "json", "gzip"] }
+idna = "=0.5.0"
+url = "=2.5.0"
+
+# Release build optimizations (distributable binaries)
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "unwind"

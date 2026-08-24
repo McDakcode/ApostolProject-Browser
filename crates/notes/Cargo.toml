@@ -1,0 +1,10 @@
+[package]
+name = "apb-notes"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+apb-storage = { path = "../storage" }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
