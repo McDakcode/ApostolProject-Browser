@@ -123,7 +123,10 @@ fn main() {
             page_relayout,
             page_split_set,
             page_split_off,
-            open_in_system
+            open_in_system,
+            app_version,
+            update_check,
+            update_install
         ])
         .run(tauri::generate_context!())
         .expect("error while running APB");

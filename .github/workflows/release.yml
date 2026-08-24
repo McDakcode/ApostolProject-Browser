@@ -1,0 +1,75 @@
+name: Release
+
+# Пуш тега v* собирает NSIS-установщик, подписывает его минисигном
+# (секреты TAURI_SIGNING_PRIVATE_KEY / _PASSWORD) и публикует релиз,
+# затем генерирует latest.json (включая флаг mandatory из update-config.json)
+# и прикрепляет его ассетом — по нему клиент проверяет обновления.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build & publish release bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "AP Browser ${{ github.ref_name }}"
+          releaseBody: "Установщик: APB_x.y.z_x64-setup.exe. Подпись обновления прилагается (.sig)."
+          releaseDraft: false
+          prerelease: false
+          args: ""
+
+      - name: Generate & upload latest.json
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $conf = Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $ver  = $conf.version
+
+          $mandatory = $false
+          try { $mandatory = [bool]((Get-Content update-config.json -Raw | ConvertFrom-Json).mandatory) } catch {}
+
+          $exe     = Get-ChildItem "target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $sigFile = "$($exe.FullName).sig"
+          if (-not $exe)     { throw "NSIS setup exe not found" }
+          if (-not (Test-Path $sigFile)) { throw "Signature file (.sig) not found" }
+          $sigText = (Get-Content $sigFile -Raw).Trim()
+
+          $repo = $env:GITHUB_REPOSITORY
+          $tag  = $env:GITHUB_REF_NAME
+          $url  = "https://github.com/$repo/releases/download/$tag/$($exe.Name)"
+
+          $manifest = [ordered]@{
+            version   = $ver
+            notes     = "Обновление AP Browser до версии $ver."
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            mandatory = $mandatory
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $sigText
+                url       = $url
+              }
+            }
+          }
+
+          $json = $manifest | ConvertTo-Json -Depth 6
+          [System.IO.File]::WriteAllText("$PWD/latest.json", $json)
+          gh release upload "$tag" latest.json --clobber --repo $repo
+          Write-Output "latest.json uploaded (mandatory=$mandatory)"

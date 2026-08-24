@@ -309,6 +309,16 @@
                   <button id="netDiagBtn" class="ghost-btn">Проверить соединение</button>
                   <ul id="diagList" class="list"></ul>
                 </details>
+
+                <p class="panel-subtitle">Обновления</p>
+                <div class="row">
+                  <span id="updVerLabel" class="hint">Установлена версия: …</span>
+                  <button id="updCheckBtn">Проверить обновления</button>
+                </div>
+                <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:6px">
+                  <input type="checkbox" id="updAutoChk" />
+                  <span>Проверять обновления при запуске</span>
+                </label>
               </section>
 
               <section id="appearance" class="panel internal-page">
@@ -795,6 +805,7 @@
   </script>
   <script src="js/core/debug-log.js"></script>
   <script src="js/core/boot-core.js?v=3"></script>
+  <script src="js/shell/updater-ui.js?v=1"></script>
   <script src="js/shell/sitefx-ctxmenu-find.js?v=8"></script>
   <script src="js/shell/theme-searchengines.js"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>

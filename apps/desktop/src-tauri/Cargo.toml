@@ -15,6 +15,7 @@ uuid = { version = "=1.10.0", features = ["v4", "serde"] }
 time = { workspace = true }
 chrono = { workspace = true }
 ureq = { workspace = true }
+minisign-verify = "0.2"
 
 apb-storage = { path = "../../../crates/storage" }
 apb-profiles = { path = "../../../crates/profiles" }
