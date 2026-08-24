@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-network
 //!
 //! Network Settings engine (design doc §9, §10A.6-8): DNS (system / custom /
@@ -141,6 +142,7 @@ pub struct ProxyHop {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// Made by MrDuck && Ox-Alpha
 pub struct ProxyChain {
     pub id: Uuid,
     pub name: String,
@@ -274,6 +276,7 @@ impl NetworkSettings {
 
     /// The route a request to `host` would take right now — used both by the
     /// UI visualization and (in the real app) by the engine adapter.
+// Made by MrDuck && Ox-Alpha
     pub fn effective_route_for(&self, host: &str) -> Vec<RouteNode> {
         let mut nodes = vec![RouteNode {
             label: "Browser".into(),
@@ -406,6 +409,7 @@ pub fn resolve_system(host: &str) -> DiagnosticResult {
 }
 
 /// Full diagnostics suite for the current settings.
+// Made by MrDuck && Ox-Alpha
 pub fn run_diagnostics(settings: &NetworkSettings) -> Vec<DiagnosticResult> {
     let mut out = Vec::new();
     out.push(resolve_system("example.com"));
@@ -545,3 +549,5 @@ mod tests {
         }
     }
 }
+
+// Made by MrDuck && Ox-Alpha

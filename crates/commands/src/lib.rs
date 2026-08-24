@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-commands
 //!
 //! Command Palette registry (§22). Every feature crate registers its actions
@@ -150,3 +151,5 @@ mod tests {
         assert!(results.is_empty());
     }
 }
+
+// Made by MrDuck && Ox-Alpha

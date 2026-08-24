@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // Profiles
 // ---------------------------------------------------------------------
@@ -112,3 +113,5 @@ function ensureHomeVisible() {
 // NOTE: the syncPageLayout wrapper lives at the END of
 // 06-session-ws-downloads-tabs.js — it must run AFTER the real
 // syncPageLayout declaration (no cross-file hoisting anymore).
+
+// Made by MrDuck && Ox-Alpha

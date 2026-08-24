@@ -1,4 +1,5 @@
-﻿//! Shared application state for the Tauri shell.
+﻿// Made by MrDuck && Ox-Alpha
+//! Shared application state for the Tauri shell.
 //!
 //! Holds the `ProfileManager` (device-wide) plus the currently *active*
 //! profile's opened stores (bookmarks/history/notes/privacy/network/canvas/
@@ -169,3 +170,5 @@ fn build_command_registry() -> CommandRegistry {
     add("panic.button", "Паника — стереть следы сессии", "Приватность", &["panic", "wipe", "паника", "стереть"], None);
     r
 }
+
+// Made by MrDuck && Ox-Alpha

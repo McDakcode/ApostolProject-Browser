@@ -1,4 +1,5 @@
-﻿//! apb-privacy
+﻿// Made by MrDuck && Ox-Alpha
+//! apb-privacy
 //!
 //! The Privacy Engine (design doc §10, §10A). This crate is the single
 //! source of truth for *what* the browser does to protect the user; the
@@ -274,6 +275,7 @@ impl TrackerBlocker {
     }
 
     /// Record a blocked request against the live stats.
+// Made by MrDuck && Ox-Alpha
     pub fn record_block(&self, host: &str, category: TrackerCategory) {
         let mut stats = self.stats.lock().expect("privacy stats mutex poisoned");
         stats.total_blocked += 1;
@@ -534,6 +536,7 @@ pub enum PermissionDecision {
 }
 
 impl SiteOverride {
+// Made by MrDuck && Ox-Alpha
     pub fn new(host: impl Into<String>) -> Self {
         Self {
             host: host.into(),
@@ -800,6 +803,7 @@ impl PrivacyState {
     }
 
     /// Effective policy right now: emergency mode overrides everything.
+// Made by MrDuck && Ox-Alpha
     pub fn effective_policy(&self) -> PrivacyPolicy {
         if self.emergency_mode {
             self.policy.clone().into_emergency()
@@ -1069,3 +1073,5 @@ mod tests {
         assert!(!rec.notes.is_empty());
     }
 }
+
+// Made by MrDuck && Ox-Alpha

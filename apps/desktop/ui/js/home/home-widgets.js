@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // Home screen (Firefox-style): greeting, search, pinned tiles, recents
 // ---------------------------------------------------------------------
@@ -120,6 +121,7 @@ async function renderHome() {
   const rc = document.getElementById("recentTiles");
   rc.innerHTML = "";
   try {
+// Made by MrDuck && Ox-Alpha
     const visits = await invoke("recent_history", { limit: 12 });
     const seen = new Set();
     for (const v of visits) {
@@ -237,6 +239,7 @@ document.getElementById("calNext")?.addEventListener("click", () => { calOffset+
 // Weather widget — Open-Meteo (free, no API key)
 // ---------------------------------------------------------------------
 
+// Made by MrDuck && Ox-Alpha
 const WX_CODES = {
   0: ["☀️", "Ясно"], 1: ["🌤️", "Преимущ. ясно"], 2: ["⛅", "Переменная облачность"], 3: ["☁️", "Облачно"],
   45: ["🌫️", "Туман"], 48: ["🌫️", "Изморозь"],
@@ -364,6 +367,7 @@ async function renderWeatherPreview(cfg) {
 }
 
 // Render weather markup into an arbitrary container (shared by widget+preview)
+// Made by MrDuck && Ox-Alpha
 function renderWeatherInto(body, cfg) {
   const code = cfg.data?.weather_code ?? 3;
   const [icon, desc] = WX_CODES[code] || ["🌡️", ""];
@@ -484,3 +488,5 @@ document.getElementById("homeSearchForm").addEventListener("submit", (e) => {
   }
 });
 
+
+// Made by MrDuck && Ox-Alpha

@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 const invoke = window.__TAURI__.core.invoke;
 
 // ---------------------------------------------------------------------
@@ -172,3 +173,5 @@ function reapplyDarkAfterNav(id) {
 }
 
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

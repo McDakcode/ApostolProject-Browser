@@ -1,4 +1,5 @@
-﻿//! apb-canvas
+﻿// Made by MrDuck && Ox-Alpha
+//! apb-canvas
 //!
 //! Infinite canvas document model (design doc §15). Documents are stored as
 //! plain JSON files (`.canvas.json`) in the profile's `canvas/` directory —
@@ -200,6 +201,7 @@ impl Viewport {
         Point::new((p.x + self.pan_x) * self.zoom, (p.y + self.pan_y) * self.zoom)
     }
 
+// Made by MrDuck && Ox-Alpha
     pub fn screen_to_world(&self, p: Point) -> Point {
         Point::new(p.x / self.zoom - self.pan_x, p.y / self.zoom - self.pan_y)
     }
@@ -399,6 +401,7 @@ fn apply_op(doc: &mut Document, op: &Op) -> bool {
 // SVG export
 // ---------------------------------------------------------------------------
 
+// Made by MrDuck && Ox-Alpha
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -605,6 +608,7 @@ impl CanvasStore {
     }
 
     /// Convenience used by the UI: append a link card to a saved document.
+// Made by MrDuck && Ox-Alpha
     pub fn add_link_card(&self, name: &str, url: &str, title: &str) -> Result<Element> {
         let mut doc = self.load(name)?;
         let next_slot = doc.content_bounds().map(|b| b.y + b.h).unwrap_or(0.0) + 40.0;
@@ -802,3 +806,5 @@ mod tests {
         assert_eq!(sanitize_file_stem(""), "untitled");
     }
 }
+
+// Made by MrDuck && Ox-Alpha

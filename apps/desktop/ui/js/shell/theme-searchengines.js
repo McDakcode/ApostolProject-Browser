@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // Theme (dark / light, persisted). Переключатель темы в тулбаре убран —
 // выбор темы живёт в настройках (.theme-buttons).
@@ -38,3 +39,5 @@ searchEngineSelect.addEventListener("change", (e) => {
   localStorage.setItem("apb-search-engine", e.target.value);
 });
 
+
+// Made by MrDuck && Ox-Alpha

@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::shell::PageTab;
@@ -85,6 +86,7 @@ pub(crate) async fn shell_hotkey(app: AppHandle, key: String) -> Result<(), Stri
 // The frontend orchestrates switching; the backend only stores the doc.
 // ---------------------------------------------------------------------
 
+// Made by MrDuck && Ox-Alpha
 #[tauri::command]
 
 pub(crate) fn page_extract_text(url: String) -> Result<serde_json::Value, String> {
@@ -256,6 +258,7 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
     Ok(id)
 }
 
+// Made by MrDuck && Ox-Alpha
 #[tauri::command]
 pub(crate) async fn page_navigate(app: AppHandle, id: String, url: String) -> Result<(), String> {
     let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
@@ -329,6 +332,7 @@ pub(crate) async fn page_split_set(
 }
 
 /// Выключить разделённый экран.
+// Made by MrDuck && Ox-Alpha
 #[tauri::command]
 pub(crate) async fn page_split_off(app: AppHandle) -> Result<(), String> {
     let tabs = app.state::<PageTabs>();
@@ -442,3 +446,5 @@ pub(crate) fn open_in_system(url: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+// Made by MrDuck && Ox-Alpha

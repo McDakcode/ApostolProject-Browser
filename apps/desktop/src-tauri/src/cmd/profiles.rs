@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use apb_profiles::Profile;
@@ -58,3 +59,5 @@ pub(crate) fn delete_profile(state: tauri::State<'_, SharedState>, id: String) -
 // ---------------------------------------------------------------------
 // Bookmarks (§7)
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

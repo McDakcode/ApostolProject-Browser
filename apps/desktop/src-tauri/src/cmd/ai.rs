@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -67,3 +68,5 @@ pub(crate) async fn ai_chat(
 // ---------------------------------------------------------------------
 // Extensions (per-profile sandboxed installs, §10A.22-23)
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

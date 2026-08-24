@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // UI sounds — tiny WebAudio blips, no assets
 // ---------------------------------------------------------------------
@@ -107,3 +108,5 @@ async function refreshSidePanels() {
   ]).catch((e) => console.error("panel refresh", e));
 }
 
+
+// Made by MrDuck && Ox-Alpha

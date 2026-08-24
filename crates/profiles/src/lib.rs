@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-profiles
 //!
 //! Profile isolation is the foundation of APB's privacy model (design doc §5,
@@ -58,6 +59,7 @@ pub struct Profile {
 }
 
 impl Profile {
+// Made by MrDuck && Ox-Alpha
     fn new(name: impl Into<String>) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -119,6 +121,7 @@ impl ProfileManager {
         self.data_root.join("profiles").join(id.to_string())
     }
 
+// Made by MrDuck && Ox-Alpha
     pub fn create(&self, name: &str) -> Result<Profile> {
         let profile = Profile::new(name);
         let root = self.storage_root(profile.id);
@@ -211,6 +214,7 @@ impl ProfileManager {
     }
 }
 
+// Made by MrDuck && Ox-Alpha
 fn row_to_profile(row: &rusqlite::Row) -> rusqlite::Result<Profile> {
     let privacy: String = row.get(4)?;
     let storage: String = row.get(5)?;
@@ -274,3 +278,5 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 }
+
+// Made by MrDuck && Ox-Alpha

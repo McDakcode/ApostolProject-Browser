@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -43,3 +44,5 @@ pub(crate) async fn run_network_diagnostics(
 // ---------------------------------------------------------------------
 // Secure Vault (AES-256-GCM + Argon2id)
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

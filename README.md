@@ -57,6 +57,10 @@ crates/             Domain crates: notes, graph data, vault, privacy,
 4. Auto-updates (tauri-plugin-updater + GitHub Releases)
 5. NSIS installer
 
+## Credits
+
+Built by **MrDuck** (idea, product vision, design decisions, testing) and **Ox-Alpha** (AI software engineer — wrote most of the codebase).
+
 ## License
 
 [MIT](LICENSE)

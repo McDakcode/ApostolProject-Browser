@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Rect, Size, Window};
@@ -169,3 +170,5 @@ pub(crate) fn relayout(app: &AppHandle) {
         }
     });
 }
+
+// Made by MrDuck && Ox-Alpha

@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-bookmarks
 //!
 //! Bookmarks with nested folders, free-form tags, and per-bookmark notes
@@ -231,3 +232,5 @@ mod tests {
         assert!(matches!(bs.get(Uuid::new_v4()), Err(BookmarkError::NotFound(_))));
     }
 }
+
+// Made by MrDuck && Ox-Alpha

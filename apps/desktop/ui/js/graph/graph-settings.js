@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ============================================================
 // ui/js/graph/graph-settings.js — GRAPH settings subsystem
 //
@@ -157,3 +158,5 @@
 
   window.GraphSettings = { cfg, set, save, reset, onChange, openAt, toggleAt, hide, isOpen };
 })();
+
+// Made by MrDuck && Ox-Alpha

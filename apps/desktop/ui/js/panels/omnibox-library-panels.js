@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // Address bar — smart URL vs. search resolution.
 // ---------------------------------------------------------------------
@@ -281,6 +282,7 @@ function omniHighlight() {
 }
 
 function omniRender(q) {
+// Made by MrDuck && Ox-Alpha
   const query = (q || "").trim().toLowerCase();
   if (!query) { omniHide(); return; }
   invoke("recent_history", { limit: 200 }).then((list) => {
@@ -565,6 +567,7 @@ async function toggleEmergencyShortcut() {
 // ---------------------------------------------------------------------
 
 async function runPanicButton() {
+// Made by MrDuck && Ox-Alpha
   const done = await invoke("panic_button");
   openSidePanel("privacy");
   await Promise.all([refreshHistory(), refreshPrivacy()]);
@@ -851,6 +854,7 @@ document.getElementById("pwImportFile")?.addEventListener("change", async (e) =>
   const file = e.target.files && e.target.files[0];
   e.target.value = "";
   if (!file) return;
+// Made by MrDuck && Ox-Alpha
   let rows;
   try { rows = parseCSV(await file.text()); }
   catch { alert("Не удалось прочитать файл как CSV."); return; }
@@ -1133,3 +1137,5 @@ document.getElementById("extInstallBtn").addEventListener("click", async () => {
   await refreshExtensions();
 });
 
+
+// Made by MrDuck && Ox-Alpha

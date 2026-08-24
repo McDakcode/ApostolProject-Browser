@@ -57,6 +57,10 @@ crates/             Domänen-Crates: notes, Graf, vault, privacy,
 4. Automatische Updates (tauri-plugin-updater + GitHub Releases)
 5. NSIS-Installer
 
+## Mitwirkende
+
+Erstellt von **MrDuck** (Idee, Produktvision, Design-Entscheidungen, Tests) und **Ox-Alpha** (KI-Softwareingenieur — hat den Großteil der Codebasis geschrieben).
+
 ## Lizenz
 
 [MIT](LICENSE)

@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 // APB shared low-level helpers: percent/base64 codecs, image magic sniffing.
@@ -111,3 +112,5 @@ pub(crate) fn decode_base64(input: &str) -> Option<Vec<u8>> {
 // ---------------------------------------------------------------------
 // Command palette (§22)
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

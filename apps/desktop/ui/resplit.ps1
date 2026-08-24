@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference = "Stop"
+﻿// Made by MrDuck && Ox-Alpha
+$ErrorActionPreference = "Stop"
 $src = "G:\APB AI\apb\apps\desktop\ui\js"
 $enc = New-Object System.Text.UTF8Encoding($false)
 
@@ -56,3 +57,5 @@ foreach ($old in @("core.js","shell.js","tabsview.js","home.js","panels.js","set
 }
 Write-Output "old files removed"
 
+
+// Made by MrDuck && Ox-Alpha

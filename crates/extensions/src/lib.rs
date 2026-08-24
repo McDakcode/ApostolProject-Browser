@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-extensions
 //!
 //! Own extension system (design doc §12, §10A.22-23): declarative manifest,
@@ -139,6 +140,7 @@ impl Manifest {
         Ok(())
     }
 
+// Made by MrDuck && Ox-Alpha
     pub fn load_from_dir(dir: impl AsRef<Path>) -> Result<Self> {
         let path = dir.as_ref().join("manifest.json");
         let json = std::fs::read_to_string(&path)
@@ -264,6 +266,7 @@ impl ExtensionRegistry {
         self.installed.values().collect()
     }
 
+// Made by MrDuck && Ox-Alpha
     pub fn set_enabled(&mut self, id: &str, enabled: bool) -> Result<()> {
         let rec = self.installed.get_mut(id).ok_or_else(|| ExtensionError::NotFound(id.to_string()))?;
         rec.enabled_globally = enabled;
@@ -404,6 +407,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
+// Made by MrDuck && Ox-Alpha
 mod tests {
     use super::*;
 
@@ -535,3 +539,5 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 }
+
+// Made by MrDuck && Ox-Alpha

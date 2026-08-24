@@ -57,6 +57,10 @@ crates/             领域 crate：notes、图谱、vault、privacy、
 4. 自动更新（tauri-plugin-updater + GitHub Releases）
 5. NSIS 安装程序
 
+## 制作人员
+
+由 **MrDuck**（创意、产品方向、设计决策、测试）与 **Ox-Alpha**（AI 软件工程师——编写了本代码库的大部分）共同打造。
+
 ## 许可证
 
 [MIT](LICENSE)

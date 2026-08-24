@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // GUI-приложение без консольного окна (пустая консоль рядом с браузером
 // сбивала с толку). Диагностика всё равно пишется в apb/logs/shell-debug.log.
 #![windows_subsystem = "windows"]
@@ -127,3 +128,5 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running APB");
 }
+
+// Made by MrDuck && Ox-Alpha

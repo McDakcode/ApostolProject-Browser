@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-notes
 //!
 //! Notes are plain `.md` files on disk — the vault IS the filesystem
@@ -80,6 +81,7 @@ impl Vault {
     }
 
     /// Create/overwrite a note file, then update the index for it.
+// Made by MrDuck && Ox-Alpha
     pub fn write_note(&self, relative_path: &str, content: &str) -> Result<()> {
         let full = self.root.join(relative_path);
         if let Some(parent) = full.parent() {
@@ -152,6 +154,7 @@ impl Vault {
 
     /// Notes whose content contains `[[Title]]` pointing at `title` — the
     /// backlinks panel (§13/§14).
+// Made by MrDuck && Ox-Alpha
     pub fn backlinks(&self, title: &str) -> Result<Vec<String>> {
         self.index
             .with_conn(|c| {
@@ -226,6 +229,7 @@ fn extract_tags(content: &str) -> Vec<String> {
 
 /// Все `[[вики-ссылки]]` из текста заметки (порядок вхождения, без дублей
 /// подряд — дедупликация на совести вызывающего).
+// Made by MrDuck && Ox-Alpha
 pub fn extract_wikilinks(content: &str) -> Vec<String> {
     let mut links = Vec::new();
     let mut rest = content;
@@ -309,3 +313,5 @@ mod tests {
         format!("{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())
     }
 }
+
+// Made by MrDuck && Ox-Alpha

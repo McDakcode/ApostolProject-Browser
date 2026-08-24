@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -35,3 +36,5 @@ pub(crate) fn workspaces_set(state: tauri::State<'_, SharedState>, data: serde_j
     )
     .map_err(|e| e.to_string())
 }
+
+// Made by MrDuck && Ox-Alpha

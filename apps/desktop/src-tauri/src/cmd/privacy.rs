@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::cmd::ai::load_ai_config;
@@ -131,3 +132,5 @@ pub(crate) fn panic_button(state: tauri::State<'_, SharedState>) -> Result<Vec<S
 // ---------------------------------------------------------------------
 // Network (§10A.6 — DoH/DoT, proxy chains, route preview)
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

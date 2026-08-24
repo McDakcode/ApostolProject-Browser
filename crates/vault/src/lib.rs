@@ -1,4 +1,5 @@
-﻿//! apb-vault
+﻿// Made by MrDuck && Ox-Alpha
+//! apb-vault
 //!
 //! Secure Vault (design doc §11, §10A.24): passwords, secure notes, credit
 //! cards, API keys and TOTP secrets — encrypted at rest with AES-256-GCM,
@@ -196,6 +197,7 @@ fn derive_key(passphrase: &str, salt: &[u8], m_kib: u32, t: u32, p: u32) -> [u8;
     key
 }
 
+// Made by MrDuck && Ox-Alpha
 fn encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| VaultError::Crypto(e.to_string()))?;
     let nonce_bytes = random_bytes(12)?;
@@ -390,6 +392,7 @@ pub struct VaultFile {
     envelope: VaultEnvelope,
 }
 
+// Made by MrDuck && Ox-Alpha
 impl VaultFile {
     pub fn unlock(self, passphrase: &str) -> Result<Vault> {
         let salt = unb64(&self.envelope.kdf_salt_b64)?;
@@ -581,6 +584,7 @@ impl Vault {
     }
 
     /// Full entry content — only through explicit user action in the UI.
+// Made by MrDuck && Ox-Alpha
     pub fn reveal_entry(&self, id: Uuid) -> Result<Entry> {
         if self.is_locked() {
             return Err(VaultError::Locked);
@@ -779,3 +783,5 @@ mod tests {
         std::fs::remove_file(&copy_path).ok();
     }
 }
+
+// Made by MrDuck && Ox-Alpha

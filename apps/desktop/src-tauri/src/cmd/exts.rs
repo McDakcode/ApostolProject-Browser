@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -73,3 +74,5 @@ pub(crate) fn ext_sandbox_policy(
 // Fallback-only estimates used before the shell DOM reports the real
 // content-area rect via `page_relayout` (tabstrip + toolbar stack on top,
 // icon rail on the left — see ui/index.html).
+
+// Made by MrDuck && Ox-Alpha

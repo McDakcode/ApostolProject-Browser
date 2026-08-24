@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! Debug logging for the demo/debug build.
 //!
 //! The frontend buffers diagnostics (JS errors, unhandled rejections,
@@ -70,3 +71,5 @@ pub(crate) fn debug_log_append(
     Ok(())
 }
 
+
+// Made by MrDuck && Ox-Alpha

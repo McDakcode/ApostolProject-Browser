@@ -1,4 +1,5 @@
-﻿//! apb-ai
+﻿// Made by MrDuck && Ox-Alpha
+//! apb-ai
 //!
 //! Local-first AI subsystem (design doc §14) with a hard Privacy Firewall
 //! (§10A): before *any* byte leaves the machine towards a cloud provider,
@@ -75,6 +76,7 @@ impl Default for ProviderConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+// Made by MrDuck && Ox-Alpha
 pub enum Role {
     System,
     User,
@@ -91,6 +93,7 @@ impl ChatMessage {
     pub fn user(content: impl Into<String>) -> Self {
         Self { role: Role::User, content: content.into() }
     }
+// Made by MrDuck && Ox-Alpha
     pub fn assistant(content: impl Into<String>) -> Self {
         Self { role: Role::Assistant, content: content.into() }
     }
@@ -653,6 +656,7 @@ impl AiAction {
 }
 
 /// Extract ```apb-action fenced blocks from an assistant reply.
+// Made by MrDuck && Ox-Alpha
 pub fn parse_actions(reply: &str) -> Vec<AiAction> {
     let mut actions = Vec::new();
     let mut rest = reply;
@@ -1083,3 +1087,5 @@ mod tests {
         assert!(cfg.base_url.starts_with("http://127.0.0.1"));
     }
 }
+
+// Made by MrDuck && Ox-Alpha

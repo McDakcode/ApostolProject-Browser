@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-cli-demo — сквозной интеграционный прогон backend-слоя APB.
 //!
 //! Создаёт временный data root и проходит по всем подсистемам: профили,
@@ -154,3 +155,5 @@ fn main() {
 
     println!("== ВСЁ ОК ==");
 }
+
+// Made by MrDuck && Ox-Alpha

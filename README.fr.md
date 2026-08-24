@@ -57,6 +57,10 @@ crates/             Crates métier : notes, graphe, vault, privacy,
 4. Mises à jour automatiques (tauri-plugin-updater + GitHub Releases)
 5. Installateur NSIS
 
+## Crédits
+
+Créé par **MrDuck** (idée, vision produit, décisions de conception, tests) et **Ox-Alpha** (ingénieur logiciel IA — a écrit la majeure partie du code).
+
 ## Licence
 
 [MIT](LICENSE)

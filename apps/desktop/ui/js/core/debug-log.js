@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ============================================================
 // ui/js/core/debug-log.js — DEMO DEBUG LOGGER (загружать ПЕРВЫМ!)
 //
@@ -167,3 +168,5 @@
 
   push("INFO", "debug-log инициализирован");
 })();
+
+// Made by MrDuck && Ox-Alpha

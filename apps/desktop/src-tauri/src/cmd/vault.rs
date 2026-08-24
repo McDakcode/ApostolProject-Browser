@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -106,3 +107,5 @@ pub(crate) fn vault_generate_password(length: Option<u16>) -> Result<String, Str
 // ---------------------------------------------------------------------
 // AI assistant (§14) — Privacy Firewall runs on every request
 // ---------------------------------------------------------------------
+
+// Made by MrDuck && Ox-Alpha

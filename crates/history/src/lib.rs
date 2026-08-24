@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-history
 //!
 //! Visit history for a single profile. Recording is gated by
@@ -142,3 +143,5 @@ mod tests {
         assert_eq!(hs.recent(10).unwrap().len(), 0);
     }
 }
+
+// Made by MrDuck && Ox-Alpha

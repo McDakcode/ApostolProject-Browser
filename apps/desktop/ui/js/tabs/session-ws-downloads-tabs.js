@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // Session persistence — open tabs are restored after a restart
 // ---------------------------------------------------------------------
@@ -196,6 +197,7 @@ async function refreshDownloads() {
 }
 
 try {
+// Made by MrDuck && Ox-Alpha
   window.__TAURI__.event.listen("dl-update", (e) => {
     const it = e.payload;
     const i = dlItems.findIndex((d) => d.id === it.id || (d.path === it.path && d.status === "downloading"));
@@ -383,6 +385,7 @@ function _makeTabDraggable(pill) {
     startX = e.clientX; startY = e.clientY; dragging = false;
 
     let lastY = 0;
+// Made by MrDuck && Ox-Alpha
     const move = (ev) => {
       if (!dragging) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
@@ -592,6 +595,7 @@ function navigateActiveTab(url, label, opts = {}) {
 
 // ---- Back / forward / reload (per-tab JS-side history) ----
 
+// Made by MrDuck && Ox-Alpha
 function currentTabObj() {
   return tabs.find((t) => t.id === activeTabId) || null;
 }
@@ -784,3 +788,5 @@ document.getElementById("newTabBtn").addEventListener("click", () => {
 // cross-file function hoisting disappeared when the monolith was split.
 const _origSync = syncPageLayout;
 syncPageLayout = function (...a) { _origSync(...a); ensureHomeVisible(); };
+
+// Made by MrDuck && Ox-Alpha

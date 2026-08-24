@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 // ---------------------------------------------------------------------
 // First-run onboarding — shown exactly once, at first launch
 // ---------------------------------------------------------------------
@@ -198,6 +199,7 @@ apOn("apWsCount", "change", (e) => pzUpdate({ wsCount: e.target.checked }));
 apOn("apBgDim", "input", (e) => pzUpdate({ bgDim: +e.target.value }));
 
 // --- Downloads folder setting ---
+// Made by MrDuck && Ox-Alpha
 async function dlDirRefresh() {
   try {
     const cur = await invoke("dl_dir_get");
@@ -393,6 +395,7 @@ makeResizer("panelResizer", "sidePanel", { persistKey: "panelW", min: 240 });
 // ---------------------------------------------------------------------
 
 const TOUR_KEY = "apb-ui-tour";
+// Made by MrDuck && Ox-Alpha
 const TOUR_STEPS = [
   { center: true, title: "👋 Добро пожаловать в AP Browser",
     text: "AP Browser (ApostolProject Browser) — десктопный браузер с упором на приватность. Внутри: настоящие вкладки на движке WebView2, воркспейсы со своими наборами вкладок, изолированные профили, заметки с графом знаний, сейф паролей и AI-ассистент, который умеет работать полностью локально. Никакой телеметрии — все данные остаются только на твоём компьютере. Жми «Далее» — проведу по главным кнопкам." },
@@ -592,6 +595,7 @@ function stopUITour(markDone) {
   }
   _tourDimEl = null;
   if (_tourGhostEl) { _tourGhostEl.remove(); _tourGhostEl = null; }
+// Made by MrDuck && Ox-Alpha
   window.removeEventListener("resize", _tourOnResize);
   document.removeEventListener("keydown", _tourOnKey, true);
   _tourIdx = -1;
@@ -791,3 +795,5 @@ setTimeout(() => {
 
 apOn("tourReplayBtn", "click", () => startUITour(true));
 
+
+// Made by MrDuck && Ox-Alpha

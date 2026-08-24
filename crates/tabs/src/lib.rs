@@ -1,3 +1,4 @@
+// Made by MrDuck && Ox-Alpha
 //! apb-tabs
 //!
 //! In-memory tab model plus JSON session persistence. Tabs form a tree
@@ -231,3 +232,5 @@ mod tests {
         std::fs::remove_file(&tmp).ok();
     }
 }
+
+// Made by MrDuck && Ox-Alpha
