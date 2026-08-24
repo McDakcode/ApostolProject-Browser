@@ -50,7 +50,8 @@ jobs:
           $sigFile = "$($exe.FullName).sig"
           if (-not $exe)     { throw "NSIS setup exe not found" }
           if (-not (Test-Path $sigFile)) { throw "Signature file (.sig) not found" }
-          $sigText = (Get-Content $sigFile -Raw).Trim()
+          # tauri пишет .sig как base64(текст minisign) — клиент ждёт сам текст
+          $sigText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Get-Content $sigFile -Raw).Trim()))
 
           $repo = $env:GITHUB_REPOSITORY
           $tag  = $env:GITHUB_REF_NAME

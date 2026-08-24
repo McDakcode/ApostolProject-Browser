@@ -22,7 +22,7 @@ const UPDATE_ENDPOINT: &str =
     "https://github.com/McDakcode/ApostolProject-Browser/releases/latest/download/latest.json";
 
 /// Minisign PUBLIC key (safe to embed). Private counterpart never ships.
-const UPDATE_PUBKEY: &str = "RWQ8iWkddT11FpydcIHCorAF/FCRVRs3jAePLHEtWjdqhEXFDBpTt9xg";
+const UPDATE_PUBKEY: &str = "RWQgE7w6AwqbffMpTOODFv0vNHTSn/qtn3eHyZBE7PKuefNZMu5ZSA8S";
 
 fn endpoint() -> String {
     std::env::var("APB_UPDATE_ENDPOINT").unwrap_or_else(|_| UPDATE_ENDPOINT.to_string())
