@@ -543,6 +543,40 @@ async function refreshPrivacy() {
     bs.appendChild(li);
   }
 
+  // Свои списки блокировки: показываем и даём удалить
+  const addForm = document.getElementById("blocklistAddBtn")?.closest("details");
+  if (addForm) {
+    let cl = document.getElementById("customLists");
+    if (!cl) {
+      cl = document.createElement("ul");
+      cl.id = "customLists";
+      cl.className = "list";
+      addForm.parentElement.insertBefore(cl, addForm.nextSibling);
+    }
+    cl.innerHTML = "";
+    for (const l of (ov.custom_lists || [])) {
+      const li = document.createElement("li");
+      const lines = l.text.split("\n").filter((s) => s.trim() && !s.trim().startsWith("#")).length;
+      li.innerHTML = `<div><div class="title">${escapeHtml(l.name)}</div>` +
+        `<div class="meta">${lines} доменов · ${escapeHtml(l.category)}</div></div>`;
+      const x = document.createElement("button");
+      x.className = "close";
+      x.textContent = "✕";
+      x.title = "Удалить список";
+      x.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!(await confirm(`Удалить список «${l.name}» (${lines} доменов)?`))) return;
+        try {
+          await invoke("remove_blocklist", { name: l.name });
+          await refreshPrivacy();
+          toast("Список удалён");
+        } catch (err) { alert("Ошибка: " + err); }
+      };
+      li.appendChild(x);
+      cl.appendChild(li);
+    }
+  }
+
   const dashboard = ov.dashboard || [];
   if (dashboard.length && !document.getElementById("fpDash")) {
     const p = document.createElement("p");

@@ -105,6 +105,7 @@ fn main() {
             run_network_diagnostics,
             privacy_stats,
             privacy_reset_stats,
+            remove_blocklist,
             vault_status,
             vault_create,
             vault_unlock,

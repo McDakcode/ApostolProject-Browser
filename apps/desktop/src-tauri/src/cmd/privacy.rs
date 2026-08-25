@@ -46,6 +46,7 @@ pub(crate) fn get_privacy_overview(
             "rules": snap.blocker.rule_count(),
             "proxy_live": true,
         },
+        "custom_lists": active.privacy.custom_lists,
         "threats": active.privacy.threats,
     }))
 }
@@ -149,6 +150,35 @@ pub(crate) fn add_blocklist(
     drop(guard);
     crate::liveprivacy::sync_from_state(&app)?;
     Ok(added)
+}
+
+/// Удалить пользовательский список по имени и пересобрать базу доменов
+/// из оставшихся (builtin-правила возвращаются автоматически через
+/// TrackerBlocker::new). Живой фильтр синхронизируется сразу.
+#[tauri::command]
+pub(crate) fn remove_blocklist(
+    app: AppHandle,
+    state: tauri::State<'_, SharedState>,
+    name: String,
+) -> Result<(), String> {
+    let mut guard = state.lock().unwrap();
+    {
+        let active = guard.active_mut_or_err()?;
+        let before = active.privacy.custom_lists.len();
+        active.privacy.custom_lists.retain(|l| l.name != name);
+        if active.privacy.custom_lists.len() == before {
+            return Err(format!("список «{name}» не найден"));
+        }
+        let mut blocker = apb_privacy::TrackerBlocker::new();
+        for l in &active.privacy.custom_lists {
+            blocker.add_custom_list(&l.text, l.category);
+        }
+        active.blocker = blocker;
+    }
+    guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(())
 }
 
 /// Panic Button (§10A.26): wipe traces of the current session in one shot.
