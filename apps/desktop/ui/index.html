@@ -46,9 +46,10 @@
     <!-- ============ SIDEBAR (Zen-style: vertical tabs + tools) ============ -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-inner">
-      <div class="side-head" data-tauri-drag-region>
+      <div class="side-head" data-apb-drag>
         <div class="brand"><span class="brand-mark"></span><span class="brand-name"><span class="bn-full">AP Browser</span><span class="bn-short">APB</span></span></div>
-        <button id="collapseBtn" class="icon-btn small ghost" title="Свернуть панель">«</button>
+        <button id="collapseBtn" class="icon-btn small ghost" title="Свернуть панель">‹</button>
+        <span style="flex:1" data-apb-drag></span>
       </div>
 
       <div class="ws-strip">
@@ -91,10 +92,10 @@
         <div class="ws-pills" id="wsStripTop"></div>
         <div class="tab-list-h" id="tabstripH"></div>
         <button id="ntTopBtn" class="icon-btn small ghost" title="Новая вкладка (Ctrl+T)">+</button>
-        <span style="flex:1" data-tauri-drag-region></span>
+        <span style="flex:1" data-apb-drag></span>
       </div>
 
-      <header class="toolbar" data-tauri-drag-region>
+      <header class="toolbar" data-apb-drag>
         <div class="nav-group">
           <button id="navBack" class="nav-btn" title="Назад"><svg class="ic"><use href="#i-chevL"/></svg></button>
           <button id="navFwd" class="nav-btn" title="Вперёд"><svg class="ic"><use href="#i-chevR"/></svg></button>
@@ -806,7 +807,7 @@
     });
   </script>
   <script src="js/core/debug-log.js"></script>
-  <script src="js/core/boot-core.js?v=3"></script>
+  <script src="js/core/boot-core.js?v=4"></script>
   <script src="js/shell/updater-ui.js?v=2"></script>
   <script src="js/shell/sitefx-ctxmenu-find.js?v=10"></script>
   <script src="js/shell/theme-searchengines.js"></script>

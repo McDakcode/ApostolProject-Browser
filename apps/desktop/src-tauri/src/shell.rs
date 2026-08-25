@@ -172,3 +172,126 @@ pub(crate) fn relayout(app: &AppHandle) {
 }
 
 // Made by MrDuck && Ox-Alpha
+// ---------------------------------------------------------------------------
+// Smooth manual window dragging (Windows)
+//
+// The default tao/start_dragging path enters the modal SC_MOVE loop, which
+// starves the renderer: on a frameless window with WebView2 the content
+// trails the cursor and stutters — very visible on high-refresh monitors.
+// Instead we track the cursor in a tight dedicated thread and reposition the
+// window ourselves (~500 Hz updates), so motion is as smooth as the display.
+// ---------------------------------------------------------------------------
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub(crate) fn shell_begin_drag(app: AppHandle) -> Result<(), String> {
+    if DRAG_ACTIVE.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    let window = app.get_window("shell").ok_or_else(|| "нет окна оболочки".to_string())?;
+    let hwnd_isize = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    if DRAG_ACTIVE.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+    let started = std::thread::Builder::new()
+        .name("apb-drag".into())
+        .spawn(move || {
+            #[cfg(windows)]
+            unsafe { drag_loop(hwnd_isize) }
+            DRAG_ACTIVE.store(false, Ordering::SeqCst);
+        });
+    if started.is_err() {
+        DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+unsafe fn drag_loop(hwnd_raw: isize) {
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::System::Threading::Sleep;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetCursorPos, GetWindowRect, IsZoomed, SetWindowPos,
+        ShowWindow, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_RESTORE,
+    };
+    const VK_LBUTTON: i32 = 0x01;
+    let hwnd = hwnd_raw as *mut core::ffi::c_void;
+
+    let mut pt = POINT { x: 0, y: 0 };
+    if GetCursorPos(&mut pt) == 0 {
+        return;
+    }
+    let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    GetWindowRect(hwnd, &mut rc);
+    let mut off_x = pt.x - rc.left;
+    let off_y_base = pt.y - rc.top;
+
+    // Dragging a maximized window: restore it first and keep the grab point
+    // proportionally under the cursor (like native titlebar behaviour).
+    if IsZoomed(hwnd) != 0 {
+        let total_w = ((rc.right - rc.left) as f32).max(1.0);
+        let rel = (((pt.x - rc.left) as f32) / total_w).clamp(0.08, 0.92);
+        ShowWindow(hwnd, SW_RESTORE);
+        Sleep(30);
+        GetWindowRect(hwnd, &mut rc);
+        let w = rc.right - rc.left;
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            pt.x - (rel * w as f32) as i32,
+            pt.y - off_y_base.max(14),
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+        GetWindowRect(hwnd, &mut rc);
+        off_x = pt.x - rc.left;
+    }
+
+    let off_y = pt.y - rc.top;
+    let _ = off_y_base;
+    loop {
+        Sleep(2);
+        if GetAsyncKeyState(VK_LBUTTON) >= 0 {
+            break; // button released
+        }
+        if GetCursorPos(&mut pt) == 0 {
+            break;
+        }
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            pt.x - off_x,
+            pt.y - off_y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+/// Kill DWM minimize/restore transition animations — they add perceived lag
+/// to every window operation on stock Windows.
+pub(crate) fn disable_dwm_transitions(window: &Window) {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+        if let Ok(h) = window.hwnd() {
+            let on: i32 = 1;
+            DwmSetWindowAttribute(
+                h.0 as *mut core::ffi::c_void,
+                3, // DWMWA_TRANSITIONS_FORCEDISABLED
+                &on as *const i32 as *const core::ffi::c_void,
+                4,
+            );
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = window;
+}
+
+// Made by MrDuck && Ox-Alpha

@@ -26,7 +26,7 @@ mod util;
 
 use cmd::downloads::DownloadsLog;
 use cmd::*;
-use shell::{relayout, PageTabs};
+use shell::{disable_dwm_transitions, relayout, shell_begin_drag, PageTabs};
 use state::AppState;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -64,6 +64,9 @@ fn main() {
                 .additional_browser_args(liveprivacy::browser_args())
                 .build()
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+            if let Some(shell_window) = app.get_window("shell") {
+                disable_dwm_transitions(&shell_window);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -152,6 +155,7 @@ fn main() {
             page_split_set,
             page_split_off,
             open_in_system,
+            shell_begin_drag,
             app_version,
             update_check,
             update_install

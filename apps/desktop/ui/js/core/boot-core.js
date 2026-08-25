@@ -58,6 +58,23 @@ document.getElementById("winMax").addEventListener("click", async () => {
 });
 document.getElementById("winClose").addEventListener("click", () => tauriWin()?.close());
 
+// Smooth manual window dragging: the OS modal move loop stutters WebView2
+// content, so we reposition via a dedicated backend loop instead.
+// Regions: [data-apb-drag] (titlebar areas). Interactive kids are excluded.
+document.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  const region = e.target.closest?.("[data-apb-drag]");
+  if (!region) return;
+  if (e.target.closest("button,input,select,textarea,a,.win-controls,.nav-group")) return;
+  e.preventDefault();
+  invoke("shell_begin_drag").catch(() => {});
+}, true);
+document.addEventListener("dblclick", (e) => {
+  const region = e.target.closest?.("[data-apb-drag]");
+  if (!region || e.target.closest("button,input,select,textarea,a,.win-controls")) return;
+  document.getElementById("winMax")?.click();
+});
+
 // Visible error reporting (helps catch silent breakages) + toasts
 window.addEventListener("error", (ev) => {
   try { toast("⚠ Ошибка: " + (ev.message || "неизвестно")); } catch { /* ignore */ }
