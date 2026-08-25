@@ -199,6 +199,26 @@ impl ProfileManager {
             .map_err(Into::into)
     }
 
+    /// Rename a profile. Rejects duplicates (UNIQUE constraint) and unknown ids.
+    pub fn rename(&self, id: Uuid, name: &str) -> Result<()> {
+        let result = self.registry.with_conn(|c| {
+            c.execute(
+                "UPDATE profiles SET name = ?1 WHERE id = ?2",
+                rusqlite::params![name, id.to_string()],
+            )
+        });
+        match result {
+            Ok(0) => Err(ProfileError::NotFound(id)),
+            Ok(_) => Ok(()),
+            Err(StorageError::Sqlite(rusqlite::Error::SqliteFailure(e, _)))
+                if e.code == rusqlite::ErrorCode::ConstraintViolation =>
+            {
+                Err(ProfileError::DuplicateName(name.to_string()))
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub fn delete(&self, id: Uuid) -> Result<()> {
         let affected = self
             .registry

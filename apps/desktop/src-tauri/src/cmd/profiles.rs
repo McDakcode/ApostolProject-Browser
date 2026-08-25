@@ -50,6 +50,24 @@ pub(crate) fn active_profile(state: tauri::State<'_, SharedState>) -> Result<Pro
 /// Удаление АКТИВНОГО разрешено: приложение автоматически переключается
 /// на другой существующий профиль перед стиранием.
 #[tauri::command]
+pub(crate) fn rename_profile(state: tauri::State<'_, SharedState>, id: String, name: String) -> Result<(), String> {
+    let uuid = uuid::Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("имя профиля не может быть пустым".into());
+    }
+    let mut guard = state.lock().unwrap();
+    guard.profiles.rename(uuid, &name).map_err(|e| e.to_string())?;
+    // Keep the in-memory active copy consistent (sidebar badges use it).
+    if let Some(a) = guard.active.as_mut() {
+        if a.profile.id == uuid {
+            a.profile.name = name;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub(crate) fn delete_profile(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,

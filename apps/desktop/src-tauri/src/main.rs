@@ -78,6 +78,7 @@ fn main() {
             create_profile,
             create_anonymous_profile,
             switch_profile,
+            rename_profile,
             active_profile,
             delete_profile,
             add_bookmark,

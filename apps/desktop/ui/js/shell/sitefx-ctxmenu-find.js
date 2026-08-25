@@ -98,6 +98,15 @@ function showShellMenu(x, y, target) {
         await refreshSidePanels();
       }));
     }
+    items.push(ctxItem("✎ Переименовать профиль", async () => {
+      const nn = await prompt("Новое имя профиля:", pname);
+      if (!nn || !nn.trim() || nn.trim() === pname) return;
+      try {
+        await invoke("rename_profile", { id: pid, name: nn.trim() });
+        await loadProfiles();
+        toast("Профиль переименован");
+      } catch (err) { alert("Ошибка: " + err); }
+    }));
     items.push({ separator: true });
     items.push(ctxItem("🗑 Удалить профиль и все его данные", async () => {
       if (!(await confirm(`Удалить профиль «${pname}» со ВСЕМИ заметками, историей и настройками? Действие необратимо.`))) return;

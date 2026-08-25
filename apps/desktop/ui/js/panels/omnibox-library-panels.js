@@ -445,7 +445,7 @@ async function runCommand(id) {
       await toggleEmergencyShortcut();
       break;
     case "privacy.audit":
-      openSidePanel("privacy");
+      openInternal("privacy");
       await refreshPrivacy();
       break;
     case "vault.lock":
@@ -589,7 +589,7 @@ document.getElementById("blocklistAddBtn").addEventListener("click", async () =>
 async function toggleEmergencyShortcut() {
   const ov = await invoke("get_privacy_overview");
   await invoke("set_emergency_mode", { on: !ov.emergency });
-  openSidePanel("privacy");
+  openInternal("privacy");
   await refreshPrivacy();
 }
 
@@ -600,7 +600,7 @@ async function toggleEmergencyShortcut() {
 async function runPanicButton() {
 // Made by MrDuck && Ox-Alpha
   const done = await invoke("panic_button");
-  openSidePanel("privacy");
+  openInternal("privacy");
   await Promise.all([refreshHistory(), refreshPrivacy()]);
   alert("Panic Button выполнено:\n\n• " + done.join("\n• "));
 }

@@ -73,11 +73,15 @@ async function openInternal(id) {
   document.querySelectorAll(".isec-link").forEach((b) =>
     b.classList.toggle("active", b.dataset.isec === id));
   renderTabStrip();
+  resetSettingsSearch();
   if (id === "settings") {
     pzSyncControls();
   }
   if (id === "appearance") {
     pzSyncControls();
+  }
+  if (id === "privacy") {
+    refreshPrivacy().catch(() => {});
   }
   if (id === "weatherSettings") {
     renderWeatherPreview();
@@ -107,6 +111,49 @@ async function refreshSidePanels() {
     refreshExtensions(),
   ]).catch((e) => console.error("panel refresh", e));
 }
+
+// ---------------------------------------------------------------------
+// Search across the internal settings pages: groups of rows are hidden
+// unless any of them matches the query. Sections without the
+// data-searchable attribute (vault grid, extensions) stay untouched.
+// ---------------------------------------------------------------------
+
+function resetSettingsSearch() {
+  const inp = document.getElementById("settingsSearch");
+  if (inp) inp.value = "";
+  applySettingsFilter("");
+}
+
+function applySettingsFilter(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll("#internalHost .internal-page[data-searchable]").forEach((sec) => {
+    const kids = [...sec.children];
+    let groups = [];
+    let cur = null;
+    for (const el of kids) {
+      if (el.classList.contains("panel-subtitle")) {
+        cur = { head: el, body: [] };
+        groups.push(cur);
+      } else if (cur) {
+        cur.body.push(el);
+      }
+    }
+    if (!q) {
+      groups.forEach((g) => [g.head, ...g.body].forEach((el) => el.classList.remove("hidden")));
+      return;
+    }
+    for (const g of groups) {
+      const text = [g.head, ...g.body].map((el) => el.textContent).join(" ").toLowerCase();
+      const hit = text.includes(q);
+      g.head.classList.toggle("hidden", !hit);
+      g.body.forEach((el) => el.classList.toggle("hidden", !hit));
+    }
+  });
+}
+
+document.getElementById("settingsSearch")?.addEventListener("input", (e) => {
+  applySettingsFilter(e.target.value);
+});
 
 
 // Made by MrDuck && Ox-Alpha

@@ -75,9 +75,6 @@
         <button class="rail-item" data-tab="notes" title="Заметки">
           <span class="glyph"><svg class="ic"><use href="#i-note"/></svg></span><span class="lbl">Заметки</span>
         </button>
-        <button class="rail-item" data-tab="privacy" title="Приватность">
-          <span class="glyph"><svg class="ic"><use href="#i-shield"/></svg></span><span class="lbl">Приватность</span>
-        </button>
         <button class="rail-item" data-tab="ai" title="AI-ассистент">
           <span class="glyph"><svg class="ic"><use href="#i-spark"/></svg></span><span class="lbl">AI-чат</span>
         </button>
@@ -179,40 +176,6 @@
               </div>
             </section>
 
-            <section id="privacy" class="panel">
-              <h2 class="panel-title">Приватность</h2>
-              <div class="row">
-                <select id="privacyLevelSelect">
-                  <option value="Standard">Standard</option>
-                  <option value="Balanced">Balanced</option>
-                  <option value="Strict">Strict</option>
-                  <option value="Maximum">Maximum</option>
-                  <option value="Custom">Custom</option>
-                </select>
-              </div>
-              <button id="emergencyBtn" class="ghost-btn danger">🚨 Emergency Privacy Mode</button>
-
-              <p class="panel-subtitle">Переключатели (Custom)</p>
-              <label class="checkbox-row"><input type="checkbox" id="flagTrackers" /> Блокировать трекеры</label>
-              <label class="checkbox-row"><input type="checkbox" id="flagAds" /> Блокировать рекламу</label>
-              <label class="checkbox-row"><input type="checkbox" id="flagFpScripts" /> Блокировать fingerprint-скрипты</label>
-              <label class="checkbox-row"><input type="checkbox" id="flagThirdPartyCookies" /> Сторонние cookies — блок</label>
-              <label class="checkbox-row"><input type="checkbox" id="flagHttpsOnly" /> HTTPS-only режим</label>
-              <label class="checkbox-row"><input type="checkbox" id="flagClearOnExit" /> Чистить cookies при выходе</label>
-
-              <p class="panel-subtitle">Аудит приватности</p>
-              <ul id="auditList" class="list"></ul>
-              <p class="hint" id="blockedCounter"></p>
-
-              <p class="panel-subtitle">Свой список блокировки</p>
-              <details class="add-form">
-                <summary>+ Добавить список доменов</summary>
-                <input id="blocklistName" placeholder="Название списка" />
-                <textarea id="blocklistText" rows="4" placeholder="tracker.example&#10;0.0.0.0 ads.example"></textarea>
-                <button id="blocklistAddBtn">Добавить</button>
-              </details>
-            </section>
-
           </div>
 <!-- Made by MrDuck && Ox-Alpha -->
           <div class="pane-resizer right" id="panelResizer" title="Потяните, чтобы изменить ширину панели"></div>
@@ -226,13 +189,15 @@
             <nav class="isec-nav">
               <button class="isec-link active" data-isec="settings">⚙ Настройки</button>
               <button class="isec-link" data-isec="appearance">🎨 Оформление</button>
+              <button class="isec-link" data-isec="privacy">🛡 Приватность</button>
               <button class="isec-link" data-isec="history">🕘 История</button>
               <button class="isec-link" data-isec="vault">🔑 Пароли</button>
               <button class="isec-link" data-isec="extensions">🧩 Расширения</button>
+              <input id="settingsSearch" type="text" placeholder="🔍 Поиск по настройкам…" autocomplete="off" spellcheck="false" style="margin-left:auto;width:220px" />
             </nav>
             <div class="isec-body">
 
-              <section id="settings" class="panel internal-page active">
+              <section id="settings" class="panel internal-page active" data-searchable>
                 <h2 class="internal-title">Настройки</h2>
 
                 <p class="panel-subtitle">Тема и оформление</p>
@@ -321,7 +286,44 @@
                 </label>
               </section>
 
-              <section id="appearance" class="panel internal-page">
+              <section id="privacy" class="panel internal-page" data-searchable>
+                <h2 class="internal-title">🛡 Приватность</h2>
+
+                <p class="panel-subtitle">Уровень защиты (для текущего профиля)</p>
+                <div class="row">
+                  <select id="privacyLevelSelect">
+                    <option value="Standard">Standard — базовый</option>
+                    <option value="Balanced">Balanced — сбалансированный</option>
+                    <option value="Strict">Strict — строгий</option>
+                    <option value="Maximum">Maximum — максимум</option>
+                    <option value="Custom">Custom — свой</option>
+                  </select>
+                </div>
+                <button id="emergencyBtn" class="ghost-btn danger">🚨 Emergency Privacy Mode</button>
+
+                <p class="panel-subtitle">Блокировка (переключатели Custom)</p>
+                <label class="checkbox-row"><input type="checkbox" id="flagTrackers" /> Блокировать трекеры</label>
+                <label class="checkbox-row"><input type="checkbox" id="flagAds" /> Блокировать рекламу</label>
+                <label class="checkbox-row"><input type="checkbox" id="flagFpScripts" /> Блокировать fingerprint-скрипты</label>
+                <label class="checkbox-row"><input type="checkbox" id="flagThirdPartyCookies" /> Сторонние cookies — блок</label>
+                <label class="checkbox-row"><input type="checkbox" id="flagHttpsOnly" /> HTTPS-only режим</label>
+                <label class="checkbox-row"><input type="checkbox" id="flagClearOnExit" /> Чистить cookies при выходе</label>
+                <p class="hint">Трекеры, реклама и опасные домены блокируются на сетевом уровне через встроенный локальный прокси.</p>
+
+                <p class="panel-subtitle">Статистика и аудит</p>
+                <ul id="auditList" class="list"></ul>
+                <p class="hint" id="blockedCounter"></p>
+
+                <p class="panel-subtitle">Свой список блокировки</p>
+                <details class="add-form">
+                  <summary>+ Добавить список доменов</summary>
+                  <input id="blocklistName" placeholder="Название списка" />
+                  <textarea id="blocklistText" rows="4" placeholder="tracker.example&#10;0.0.0.0 ads.example"></textarea>
+                  <button id="blocklistAddBtn">Добавить</button>
+                </details>
+              </section>
+
+              <section id="appearance" class="panel internal-page" data-searchable>
                 <h2 class="internal-title">Оформление</h2>
 
                 <p class="panel-subtitle">Профиль оформления</p>
@@ -806,13 +808,13 @@
   <script src="js/core/debug-log.js"></script>
   <script src="js/core/boot-core.js?v=3"></script>
   <script src="js/shell/updater-ui.js?v=1"></script>
-  <script src="js/shell/sitefx-ctxmenu-find.js?v=9"></script>
+  <script src="js/shell/sitefx-ctxmenu-find.js?v=10"></script>
   <script src="js/shell/theme-searchengines.js"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>
-  <script src="js/shell/sound-internalpages.js"></script>
+  <script src="js/shell/sound-internalpages.js?v=2"></script>
   <script src="js/tabs/session-ws-downloads-tabs.js?v=12"></script>
   <script src="js/home/home-widgets.js"></script>
-  <script src="js/panels/omnibox-library-panels.js?v=9"></script>
+  <script src="js/panels/omnibox-library-panels.js?v=10"></script>
   <script src="js/notes/notes-editor.js?v=8"></script>
   <script src="js/settings/settings-onboarding-pz.js?v=13"></script>
   <script src="js/graph/graph-settings.js"></script>
