@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "apb-desktop"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "apb-ai",
  "apb-bookmarks",

@@ -205,6 +205,7 @@
 
   // --- старт ------------------------------------------------------------------
   setTimeout(async () => {
+    appVersion = await invoke("app_version").catch(() => "");
     wireSettings();
     await whatsNew();
     const autoOn = lsGet(LS_AUTO) !== "0";
