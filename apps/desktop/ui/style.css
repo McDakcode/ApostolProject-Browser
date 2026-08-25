@@ -2138,3 +2138,29 @@ body.collapsed .sidebar:not(.peek) .tab-list::-webkit-scrollbar { display: none;
 #blockedSites li,
 #fpDash li { justify-content: flex-start; cursor: default; text-align: left; }
 #blockedSites li .meta { display: flex; align-items: center; gap: 6px; }
+
+/* ===== SETTINGS PAGES: unify bare buttons & stray inputs (2026-08-25) ===== */
+/* Made by MrDuck && Ox-Alpha */
+.internal-page > button,
+.row > button {
+  background: var(--accent); border: none; border-radius: var(--r-sm);
+  color: var(--on-accent); font-weight: 600; padding: 8px 14px;
+  cursor: pointer; font-family: inherit; font-size: inherit;
+  transition: filter var(--speed), transform var(--speed);
+}
+.internal-page > button:hover, .row > button:hover { filter: brightness(1.12); }
+.internal-page > button { margin: 4px 0 16px; }
+.internal-page > button:active, .row > button:active { transform: scale(0.97); }
+
+.internal-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) {
+  width: 100%;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text); padding: 8px 10px;
+  transition: border-color var(--speed);
+}
+.internal-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):focus {
+  outline: none; border-color: var(--accent);
+}
+
+/* Audit/stats text blocks: keep titles readable inside flex rows */
+#auditList li .title { font-weight: 600; }
