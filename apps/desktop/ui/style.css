@@ -2109,3 +2109,32 @@ body.collapsed .sidebar:not(.peek) .tab-list::-webkit-scrollbar { display: none;
 }
 
 /* Made by MrDuck && Ox-Alpha */
+/* ================= INTERNAL SETTINGS: search + privacy lists ================= */
+/* Made by MrDuck && Ox-Alpha */
+.isec-nav .isec-search {
+  margin-top: auto;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.isec-nav .isec-search::placeholder { color: var(--text-faint); }
+.isec-nav .isec-search:focus { outline: none; border-color: var(--accent); }
+
+#auditList li {
+  justify-content: flex-start;
+  align-items: flex-start;
+  cursor: default;
+  gap: 8px;
+}
+#auditList li > div { min-width: 0; }
+#auditList li .title { font-size: 12.5px; color: var(--text); line-height: 1.45; }
+#auditList li .meta { font-size: 11.5px; }
+
+#blockedSites li,
+#fpDash li { justify-content: flex-start; cursor: default; text-align: left; }
+#blockedSites li .meta { display: flex; align-items: center; gap: 6px; }

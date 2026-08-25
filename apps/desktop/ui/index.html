@@ -5,7 +5,7 @@
 <meta charset="utf-8" />
 <title>APB — ApostolProject Browser</title>
 <link rel="icon" type="image/png" href="logo.png?v=2" />
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=2" />
 <script>
   document.documentElement.setAttribute("data-theme", localStorage.getItem("apb-theme") || "dark");
 </script>
@@ -193,7 +193,7 @@
               <button class="isec-link" data-isec="history">🕘 История</button>
               <button class="isec-link" data-isec="vault">🔑 Пароли</button>
               <button class="isec-link" data-isec="extensions">🧩 Расширения</button>
-              <input id="settingsSearch" type="text" placeholder="🔍 Поиск по настройкам…" autocomplete="off" spellcheck="false" style="margin-left:auto;width:220px" />
+              <input id="settingsSearch" class="isec-search" type="text" placeholder="🔍 Поиск…" autocomplete="off" spellcheck="false" />
             </nav>
             <div class="isec-body">
 
