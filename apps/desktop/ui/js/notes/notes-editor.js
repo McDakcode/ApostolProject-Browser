@@ -11,7 +11,9 @@ function escapeHtml(s) {
   syncPageLayout(true);
   applyWidgetCfg();
   // First-run onboarding (shown once)
-  if (!localStorage.getItem("apb-onboarded")) setTimeout(showOnboarding, 0);
+  if (!localStorage.getItem("apb-onboarded")) setTimeout(() => {
+    try { if (typeof showOnboarding === "function") showOnboarding(); } catch {}
+  }, 0);
   // Старт: вкладки из прошлой сессии СОХРАНЯЮТСЯ и видны в списке, но
   // открываются как «спящие» (без вебвью) — на экране главный экран,
   // клик по вкладке будит её. Порядок сохраняем (новые сверху).
