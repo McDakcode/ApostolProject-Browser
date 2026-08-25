@@ -2,11 +2,16 @@
 #![allow(unused_imports)]
 
 use crate::cmd::ai::load_ai_config;
+use crate::liveprivacy::{LiveFilter, PrivacySnap};
 use crate::state::{AppState, SharedState};
+use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
-pub(crate) fn get_privacy_overview(state: tauri::State<'_, SharedState>) -> Result<serde_json::Value, String> {
+pub(crate) fn get_privacy_overview(
+    state: tauri::State<'_, SharedState>,
+    filter: tauri::State<'_, Arc<LiveFilter>>,
+) -> Result<serde_json::Value, String> {
     let guard = state.lock().unwrap();
     let active = guard.active_or_err()?;
     let profile_root = guard.profiles.storage_root(active.profile.id);
@@ -26,19 +31,56 @@ pub(crate) fn get_privacy_overview(state: tauri::State<'_, SharedState>) -> Resu
         vault_created: active.vault_path.exists(),
     };
     let findings = apb_privacy::run_audit(&policy, &inputs);
+    let snap: Arc<PrivacySnap> = filter.get();
+    let live = snap.blocker.stats();
     Ok(serde_json::json!({
         "level": active.privacy.policy.level,
         "emergency": active.privacy.emergency_mode,
         "policy": active.privacy.effective_policy(),
         "dashboard": apb_privacy::fingerprint_dashboard(&policy, &persona),
         "findings": findings,
-        "stats": active.blocker.stats(),
+        "stats": {
+            "total_blocked": live.total_blocked,
+            "per_category": live.per_category,
+            "per_site": top_sites(&live.per_site, 10),
+            "rules": snap.blocker.rule_count(),
+            "proxy_live": true,
+        },
         "threats": active.privacy.threats,
     }))
 }
 
+fn top_sites(per_site: &std::collections::BTreeMap<String, u64>, n: usize) -> Vec<serde_json::Value> {
+    let mut v: Vec<(String, u64)> = per_site.iter().map(|(k, c)| (k.clone(), *c)).collect();
+    v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    v.truncate(n);
+    v.into_iter()
+        .map(|(site, count)| serde_json::json!({ "site": site, "count": count }))
+        .collect()
+}
+
+/// Live counters of the filtering proxy (network-layer blocks).
+#[tauri::command]
+pub(crate) fn privacy_stats(filter: tauri::State<'_, Arc<LiveFilter>>) -> Result<serde_json::Value, String> {
+    let snap: Arc<PrivacySnap> = filter.get();
+    let st = snap.blocker.stats();
+    Ok(serde_json::json!({
+        "total_blocked": st.total_blocked,
+        "per_category": st.per_category,
+        "per_site": top_sites(&st.per_site, 10),
+        "rules": snap.blocker.rule_count(),
+    }))
+}
+
+#[tauri::command]
+pub(crate) fn privacy_reset_stats(filter: tauri::State<'_, Arc<LiveFilter>>) -> Result<(), String> {
+    filter.get().blocker.reset_stats();
+    Ok(())
+}
+
 #[tauri::command]
 pub(crate) fn set_privacy_level(
+    app: AppHandle,
     state: tauri::State<'_, SharedState>,
     level: apb_profiles::PrivacyLevel,
 ) -> Result<(), String> {
@@ -48,11 +90,14 @@ pub(crate) fn set_privacy_level(
     // Keep the profile's own level in sync so presets survive restarts.
     active.profile.privacy_level = level;
     guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn update_privacy_policy(
+    app: AppHandle,
     state: tauri::State<'_, SharedState>,
     policy: apb_privacy::PrivacyPolicy,
 ) -> Result<(), String> {
@@ -60,11 +105,14 @@ pub(crate) fn update_privacy_policy(
     let active = guard.active_mut_or_err()?;
     active.privacy.policy = policy;
     guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn set_emergency_mode(
+    app: AppHandle,
     state: tauri::State<'_, SharedState>,
     on: bool,
 ) -> Result<bool, String> {
@@ -74,11 +122,15 @@ pub(crate) fn set_emergency_mode(
         active.privacy.emergency_mode = on;
     }
     guard.persist_active_config()?;
-    Ok(guard.active_or_err()?.privacy.emergency_mode)
+    let now = guard.active_or_err()?.privacy.emergency_mode;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(now)
 }
 
 #[tauri::command]
 pub(crate) fn add_blocklist(
+    app: AppHandle,
     state: tauri::State<'_, SharedState>,
     name: String,
     category: apb_privacy::TrackerCategory,
@@ -94,12 +146,18 @@ pub(crate) fn add_blocklist(
         n
     };
     guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
     Ok(added)
 }
 
 /// Panic Button (§10A.26): wipe traces of the current session in one shot.
 #[tauri::command]
-pub(crate) fn panic_button(state: tauri::State<'_, SharedState>) -> Result<Vec<String>, String> {
+pub(crate) fn panic_button(
+    app: AppHandle,
+    state: tauri::State<'_, SharedState>,
+    filter: tauri::State<'_, Arc<LiveFilter>>,
+) -> Result<Vec<String>, String> {
     let mut guard = state.lock().unwrap();
     let mut done = Vec::new();
     {
@@ -110,6 +168,7 @@ pub(crate) fn panic_button(state: tauri::State<'_, SharedState>) -> Result<Vec<S
         done.push("история текущей сессии очищена".into());
 
         active.blocker.reset_stats();
+        filter.get().blocker.reset_stats();
         done.push("счётчики блокировок сброшены".into());
 
         if actions.clear_all_temporary_data || actions.close_anonymous_session {
@@ -126,6 +185,8 @@ pub(crate) fn panic_button(state: tauri::State<'_, SharedState>) -> Result<Vec<S
         done.push("Emergency Privacy Mode включён".into());
     }
     guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
     Ok(done)
 }
 

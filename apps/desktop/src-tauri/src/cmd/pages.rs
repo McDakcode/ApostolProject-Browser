@@ -172,12 +172,34 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
     };
     let app_for_main = app.clone();
     let label_for_main = label.clone();
+
+    // Fingerprint spoofing script for this profile (injected before page JS).
+    // None when protection is Off — zero overhead for Standard level.
+    let fingerprint_js: Option<String> = {
+        let state = app.state::<crate::state::SharedState>();
+        let guard = state.lock().unwrap();
+        guard.active_or_err().ok().and_then(|a| {
+            let pol = a.privacy.effective_policy();
+            if pol.fingerprint_protection == apb_privacy::FingerprintLevel::Off {
+                None
+            } else {
+                Some(
+                    apb_privacy::FingerprintPersona::derive(a.profile.id, pol.fingerprint_protection)
+                        .injection_script(),
+                )
+            }
+        })
+    };
+
     on_main_thread(&app, move || -> Result<(), String> {
         let window = app_for_main.get_window("shell").ok_or_else(|| "нет окна оболочки".to_string())?;
         let (x, y, width, height) =
             measured.unwrap_or_else(|| content_rect(&window, false));
-        let builder = WebviewBuilder::new(&label_for_main, WebviewUrl::External(parsed))
+        let mut builder = WebviewBuilder::new(&label_for_main, WebviewUrl::External(parsed))
             .initialization_script(HOTKEY_RELAY_JS)
+            // MUST match the shell window's args exactly (same user-data
+            // folder = same WebView2 environment options requirement).
+            .additional_browser_args(crate::liveprivacy::browser_args())
             .on_download(|webview, event| {
                 let handle = webview.app_handle();
                 match event {
@@ -242,6 +264,9 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
                     _ => true,
                 }
             });
+        if let Some(js) = fingerprint_js {
+            builder = builder.initialization_script(js);
+        }
         window
             .add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;

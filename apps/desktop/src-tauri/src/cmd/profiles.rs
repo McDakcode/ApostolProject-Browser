@@ -26,11 +26,18 @@ pub(crate) fn create_anonymous_profile(state: tauri::State<'_, SharedState>) -> 
 }
 
 #[tauri::command]
-pub(crate) fn switch_profile(state: tauri::State<'_, SharedState>, id: String) -> Result<Profile, String> {
+pub(crate) fn switch_profile(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<Profile, String> {
     let uuid = uuid::Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     let mut guard = state.lock().unwrap();
     guard.activate(uuid)?;
-    Ok(guard.active_or_err()?.profile.clone())
+    let profile = guard.active_or_err()?.profile.clone();
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(profile)
 }
 
 #[tauri::command]
@@ -43,7 +50,11 @@ pub(crate) fn active_profile(state: tauri::State<'_, SharedState>) -> Result<Pro
 /// Удаление АКТИВНОГО разрешено: приложение автоматически переключается
 /// на другой существующий профиль перед стиранием.
 #[tauri::command]
-pub(crate) fn delete_profile(state: tauri::State<'_, SharedState>, id: String) -> Result<(), String> {
+pub(crate) fn delete_profile(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<(), String> {
     let uuid = uuid::Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     let mut guard = state.lock().unwrap();
     let all = guard.profiles.list().map_err(|e| e.to_string())?;
@@ -63,7 +74,10 @@ pub(crate) fn delete_profile(state: tauri::State<'_, SharedState>, id: String) -
             .ok_or_else(|| "нельзя удалить последний профиль".to_string())?;
         guard.activate(next)?;
     }
-    guard.profiles.delete(uuid).map_err(|e| e.to_string())
+    guard.profiles.delete(uuid).map_err(|e| e.to_string())?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------

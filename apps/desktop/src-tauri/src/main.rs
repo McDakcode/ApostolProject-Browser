@@ -18,6 +18,8 @@
 //! worker thread; webview work is marshaled back via `shell::on_main_thread`.
 
 mod cmd;
+mod liveprivacy;
+mod proxy;
 mod shell;
 mod state;
 mod util;
@@ -26,11 +28,18 @@ use cmd::downloads::DownloadsLog;
 use cmd::*;
 use shell::{relayout, PageTabs};
 use state::AppState;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 fn main() {
+    // Privacy engine data plane must exist BEFORE the first webview: the
+    // local filtering proxy port goes into the shared browser arguments.
+    let filter = Arc::new(liveprivacy::LiveFilter::default());
+    let proxy_port = proxy::spawn(filter.clone());
+    liveprivacy::init_browser_args(proxy_port);
+
     tauri::Builder::default()
+        .manage(filter)
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -40,6 +49,21 @@ fn main() {
             app.manage(Mutex::new(bootstrapped));
             app.manage(PageTabs::default());
             app.manage(DownloadsLog::default());
+            liveprivacy::sync_from_state(app.handle())?;
+
+            // The shell window is created here (not from tauri.conf.json) so
+            // it shares the exact same browser arguments as every tab —
+            // WebView2 requires identical environment options per user-data
+            // folder, and the tabs get the proxy flag.
+            tauri::WebviewWindowBuilder::new(app, "shell", tauri::WebviewUrl::App("index.html".into()))
+                .title("APB — ApostolProject Browser")
+                .inner_size(1280.0, 820.0)
+                .min_inner_size(900.0, 560.0)
+                .resizable(true)
+                .decorations(false)
+                .additional_browser_args(liveprivacy::browser_args())
+                .build()
+                .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -78,6 +102,8 @@ fn main() {
             save_network_settings,
             route_preview,
             run_network_diagnostics,
+            privacy_stats,
+            privacy_reset_stats,
             vault_status,
             vault_create,
             vault_unlock,

@@ -509,8 +509,39 @@ async function refreshPrivacy() {
     auditList.appendChild(li);
   }
 
-  document.getElementById("blockedCounter").textContent =
-    `Заблокировано запросов: ${ov.stats?.total_blocked || 0}`;
+  const bc = document.getElementById("blockedCounter");
+  const st = ov.stats || {};
+  bc.textContent = `Заблокировано запросов: ${st.total_blocked || 0}` +
+    (st.proxy_live ? "" : " (прокси не активен)") +
+    (st.rules ? ` · правил в базе: ${st.rules}` : "");
+
+  let rst = document.getElementById("blockedResetBtn");
+  if (!rst) {
+    rst = document.createElement("button");
+    rst.id = "blockedResetBtn";
+    rst.className = "ghost-btn";
+    rst.style.cssText = "margin-top:6px;font-size:12px";
+    rst.textContent = "⟳ Сбросить счётчик блокировок";
+    rst.addEventListener("click", async () => {
+      await invoke("privacy_reset_stats");
+      await refreshPrivacy();
+    });
+    bc.parentElement.insertBefore(rst, bc.nextSibling);
+  }
+
+  let bs = document.getElementById("blockedSites");
+  if (!bs) {
+    bs = document.createElement("ul");
+    bs.id = "blockedSites";
+    bs.className = "list";
+    rst.parentElement.insertBefore(bs, rst.nextSibling);
+  }
+  bs.innerHTML = "";
+  for (const s of (st.per_site || [])) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="meta">🚫 ${escapeHtml(s.site)} — <strong>${s.count}</strong></div>`;
+    bs.appendChild(li);
+  }
 
   const dashboard = ov.dashboard || [];
   if (dashboard.length && !document.getElementById("fpDash")) {
