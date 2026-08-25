@@ -97,16 +97,17 @@ function showShellMenu(x, y, target) {
         await loadProfiles();
         await refreshSidePanels();
       }));
-      items.push({ separator: true });
-      items.push(ctxItem("🗑 Удалить профиль и все его данные", async () => {
-        if (!(await confirm(`Удалить профиль «${pname}» со ВСЕМИ заметками, историей и настройками? Действие необратимо.`))) return;
-        try {
-          await invoke("delete_profile", { id: pid });
-          await loadProfiles();
-          toast("Профиль удалён");
-        } catch (err) { alert("Ошибка: " + err); }
-      }, true));
     }
+    items.push({ separator: true });
+    items.push(ctxItem("🗑 Удалить профиль и все его данные", async () => {
+      if (!(await confirm(`Удалить профиль «${pname}» со ВСЕМИ заметками, историей и настройками? Действие необратимо.`))) return;
+      try {
+        await invoke("delete_profile", { id: pid });
+        await loadProfiles();
+        await refreshSidePanels();
+        toast("Профиль удалён");
+      } catch (err) { alert("Ошибка: " + err); }
+    }, true));
   }
 
   // ---- Заметка ----

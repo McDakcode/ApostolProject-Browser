@@ -9,15 +9,21 @@ pub(crate) fn workspaces_get(state: tauri::State<'_, SharedState>) -> Result<ser
     let guard = state.lock().unwrap();
     let active = guard.active_or_err()?;
     let path = guard.profiles.storage_root(active.profile.id).join("workspaces.json");
+    // Воркспейс всегда должен быть хотя бы один: битый/пустой файл =
+    // дефолтный документ «Основное» (иначе пилюли воркспейсов пропадают).
+    let default_doc = || {
+        serde_json::json!({
+            "current": 0,
+            "list": [ { "id": 0, "name": "Основное", "tabs": [], "active": 0 } ]
+        })
+    };
     Ok(std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(|| {
-            serde_json::json!({
-                "current": 0,
-                "list": [ { "id": 0, "name": "Основное", "tabs": [], "active": 0 } ]
-            })
-        }))
+        .filter(|doc: &serde_json::Value| {
+            doc.get("list").and_then(|l| l.as_array()).map(|a| !a.is_empty()).unwrap_or(false)
+        })
+        .unwrap_or_else(default_doc))
 }
 
 /// Fetch a page server-side and return readable text for the AI context.

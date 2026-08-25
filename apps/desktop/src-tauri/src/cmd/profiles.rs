@@ -39,19 +39,29 @@ pub(crate) fn active_profile(state: tauri::State<'_, SharedState>) -> Result<Pro
 }
 
 /// Удалить профиль вместе со всеми его данными (storage root стирается
-/// целиком в ProfileManager::delete). Активный профиль удалить нельзя —
-/// сначала переключиться на другой.
+/// целиком в ProfileManager::delete). Единственный профиль удалить нельзя.
+/// Удаление АКТИВНОГО разрешено: приложение автоматически переключается
+/// на другой существующий профиль перед стиранием.
 #[tauri::command]
 pub(crate) fn delete_profile(state: tauri::State<'_, SharedState>, id: String) -> Result<(), String> {
     let uuid = uuid::Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     let mut guard = state.lock().unwrap();
-    if let Some(active) = guard.active.as_ref() {
-        if active.profile.id == uuid {
-            return Err("нельзя удалить активный профиль — сначала переключитесь на другой".into());
-        }
+    let all = guard.profiles.list().map_err(|e| e.to_string())?;
+    if all.len() <= 1 {
+        return Err("нельзя удалить последний профиль — должен остаться хотя бы один".into());
     }
-    if guard.profiles.list().map_err(|e| e.to_string())?.len() <= 1 {
-        return Err("нельзя удалить последний профиль".into());
+    let is_active = guard
+        .active
+        .as_ref()
+        .map(|a| a.profile.id == uuid)
+        .unwrap_or(false);
+    if is_active {
+        let next = all
+            .iter()
+            .find(|p| p.id != uuid)
+            .map(|p| p.id)
+            .ok_or_else(|| "нельзя удалить последний профиль".to_string())?;
+        guard.activate(next)?;
     }
     guard.profiles.delete(uuid).map_err(|e| e.to_string())
 }
