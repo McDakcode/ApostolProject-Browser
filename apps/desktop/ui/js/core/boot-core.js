@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 const invoke = window.__TAURI__.core.invoke;
 
 // ---------------------------------------------------------------------
@@ -57,6 +57,31 @@ document.getElementById("winMax").addEventListener("click", async () => {
   if (w) await w.toggleMaximize();
 });
 document.getElementById("winClose").addEventListener("click", () => tauriWin()?.close());
+
+// Развёрнуто/восстановлено: рамка-прослойка между окном и краями экрана
+// (html.is-maximized в style.css). После смены режима пересчитываем дырку
+// под нативные вебвью — она сдвигается на толщину padding.
+let maxFrameBusy = false;
+async function syncMaximizedFrame() {
+  if (maxFrameBusy) return;
+  maxFrameBusy = true;
+  const w = tauriWin();
+  if (w) {
+    try {
+      const max = await w.isMaximized();
+      document.documentElement.classList.toggle("is-maximized", !!max);
+    } catch { /* окно недоступно */ }
+  }
+  if (typeof syncPageLayout === "function") {
+    syncPageLayout(true);
+    setTimeout(() => syncPageLayout(), 240);
+  }
+  maxFrameBusy = false;
+}
+try {
+  tauriWin()?.onResized(() => { syncMaximizedFrame(); });
+} catch { /* API недоступен */ }
+setTimeout(syncMaximizedFrame, 60); // первичная синхронизация после загрузки
 
 // Smooth manual window dragging: the OS modal move loop stutters WebView2
 // content, so we reposition via a dedicated backend loop instead.
@@ -191,4 +216,4 @@ function reapplyDarkAfterNav(id) {
 
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

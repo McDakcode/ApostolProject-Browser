@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::util::percent_encode;
@@ -61,7 +61,7 @@ pub(crate) fn backlinks(state: tauri::State<'_, SharedState>, title: String) -> 
 /// Save a drawing (PNG data-URL from the note editor's canvas) into the
 /// profile's `notes/assets/` folder; returns an asset-protocol URL that the
 /// markdown preview can render directly.
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 pub(crate) fn save_note_image(
     state: tauri::State<'_, SharedState>,
@@ -140,7 +140,7 @@ pub(crate) fn read_note_asset(state: tauri::State<'_, SharedState>, src: String)
 
 /// Detect common raster image formats by magic bytes.
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 pub(crate) fn notes_graph(state: tauri::State<'_, SharedState>) -> Result<serde_json::Value, String> {
     let guard = state.lock().unwrap();
@@ -204,7 +204,7 @@ pub(crate) fn save_board_items(
     .map_err(|e| e.to_string())
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 pub(crate) fn save_graph_positions(
     state: tauri::State<'_, SharedState>,
@@ -269,4 +269,4 @@ pub(crate) fn notes_reindex(state: tauri::State<'_, SharedState>) -> Result<usiz
 // on the frontend side (they keep nothing by design).
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

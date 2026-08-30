@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 //! Auto-update engine.
 //!
 //! Flow: GitHub Releases hosts `latest.json` (asset of the newest release).
@@ -177,4 +177,4 @@ pub async fn update_install(url: String, signature: String) -> Result<(), String
     Ok(())
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

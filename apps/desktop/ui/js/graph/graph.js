@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ============================================================
 // ui/js/graph/graph.js — GRAPH v2, canvas engine (full rewrite)
 //
@@ -465,7 +465,7 @@
     }
 
     // lines run EDGE to EDGE, not center to center
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
     const a0 = anchorForPort(lk.from, tc);
     const b0 = anchorForPort(lk.to, fc);
     if (!a0 || !b0) return null;
@@ -937,7 +937,7 @@
     return el;
   }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   function renderBlocks() {
     if (!blockLayer) return;
     blockLayer.innerHTML = "";
@@ -1379,7 +1379,7 @@
     G.links = G.links.filter((l) => !ids.has(l.id));
   }
   /** redo=true → повторить действие; false → откатить */
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   function applyOp(op, redo) {
     switch (op.t) {
       case "move":
@@ -1859,4 +1859,4 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) window.flushGraphSaves(); });
 })();
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

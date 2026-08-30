@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // Session persistence — open tabs are restored after a restart
 // ---------------------------------------------------------------------
@@ -197,7 +197,7 @@ async function refreshDownloads() {
 }
 
 try {
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   window.__TAURI__.event.listen("dl-update", (e) => {
     const it = e.payload;
     const i = dlItems.findIndex((d) => d.id === it.id || (d.path === it.path && d.status === "downloading"));
@@ -385,7 +385,7 @@ function _makeTabDraggable(pill) {
     startX = e.clientX; startY = e.clientY; dragging = false;
 
     let lastY = 0;
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
     const move = (ev) => {
       if (!dragging) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
@@ -488,6 +488,39 @@ async function apbSplitExit(focusId) {
 }
 window.apbSplitWith = apbSplitWith;
 window.apbSplitExit = apbSplitExit;
+
+// Точка входа для бэкенда (shell_open_tab): target=_blank-ссылки и window.open
+// из вкладок открываются новой вкладкой здесь, в шелле.
+window.__apbOpenTab = (url) => createTab(url);
+
+// События от бэкенда о жизни вкладок-вебвью:
+try {
+  const ev = window.__TAURI__.event;
+  // Сайт сам сменил страницу (клик по ссылке/редирект) — синхронизируем
+  // вкладку, историю и омнибокс, иначе адресная строка показывает старое.
+  ev.listen("page-url-changed", (e) => {
+    const { id, url } = e.payload || {};
+    const t = tabs.find((x) => x.id === id);
+    if (!t || !url || t.url === url) return;
+    t.url = url;
+    t.label = labelFromUrl(url) || hostnameOf(url);
+    if (t.hist[t.hi] !== url) {
+      t.hist = t.hist.slice(0, t.hi + 1);
+      t.hist.push(url);
+      t.hi = t.hist.length - 1;
+    }
+    if (id === activeTabId) document.getElementById("addressInput").value = url;
+    renderTabStrip();
+    updateNavBtns();
+    scheduleSessionSave();
+  });
+  // Нативное меню «Открыть в новом окне» (ПКМ на YouTube и т.п.) — бэкенд
+  // запретил ОС-окно и просит открыть ссылку вкладкой.
+  ev.listen("page-open-tab", (e) => {
+    const u = e.payload && e.payload.url;
+    if (u) window.__apbOpenTab(u);
+  });
+} catch { /* event API недоступен — живём как раньше */ }
 
 /** Кнопка ⬓ в тулбаре: вкл/выкл сплит одной кнопкой. */
 document.getElementById("splitBtn").addEventListener("click", () => {
@@ -595,7 +628,7 @@ function navigateActiveTab(url, label, opts = {}) {
 
 // ---- Back / forward / reload (per-tab JS-side history) ----
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 function currentTabObj() {
   return tabs.find((t) => t.id === activeTabId) || null;
 }
@@ -789,4 +822,4 @@ document.getElementById("newTabBtn").addEventListener("click", () => {
 const _origSync = syncPageLayout;
 syncPageLayout = function (...a) { _origSync(...a); ensureHomeVisible(); };
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

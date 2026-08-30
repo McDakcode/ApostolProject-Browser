@@ -14,6 +14,8 @@
 //! each item (`enforced_by` in the audit findings and README).
 
 pub use apb_profiles::{PrivacyLevel, Profile};
+pub mod blocklists;
+use blocklists::builtin_rules;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -93,13 +95,15 @@ pub struct PrivacyPolicy {
 }
 
 impl PrivacyPolicy {
-    /// Preset mapping (§10A.1). Standard = maximum site compatibility;
-    /// Maximum = aggressive even if some sites break.
+    /// Preset mapping (§10A.1). Standard = compatibility-first BUT ad
+    /// blocking is on from the very first launch (a privacy-first browser
+    /// does not ship with ads enabled); Maximum = aggressive even if some
+    /// sites break.
     pub fn for_level(level: PrivacyLevel) -> Self {
         let mut p = Self {
             level,
             block_trackers: true,
-            block_ads: false,
+            block_ads: true,
             block_fingerprinting_scripts: false,
             block_malicious_domains: true,
             block_third_party_cookies: false,
@@ -324,7 +328,9 @@ impl Default for TrackerBlocker {
     }
 }
 
-fn is_plausible_domain(s: &str) -> bool {
+/// Domain-shaped enough to enter the blocker map (also used by the filter
+/// list parser in `blocklists`).
+pub fn is_plausible_domain(s: &str) -> bool {
     !s.is_empty()
         && s.contains('.')
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
@@ -659,15 +665,14 @@ pub fn run_audit(policy: &PrivacyPolicy, net: &AuditInputs) -> Vec<Finding> {
         },
     });
     f.push(Finding {
-        status: match policy.webrtc {
-            WebRtcPolicy::Enabled => FindingStatus::Warn,
-            _ => FindingStatus::Ok,
-        },
+        status: FindingStatus::Ok,
         area: "WebRTC",
         message: match policy.webrtc {
-            WebRtcPolicy::Enabled => "WebRTC может раскрыть реальный IP".into(),
-            WebRtcPolicy::HidePublicIps => "Публичные IP скрыты (mDNS)".into(),
-            WebRtcPolicy::Disabled => "WebRTC отключён".into(),
+            // Engine-level: --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+            // is always on, so even the permissive profile cannot leak UDP.
+            WebRtcPolicy::Enabled => "WebRTC работает, но UDP вне прокси запрещён движком".into(),
+            WebRtcPolicy::HidePublicIps => "Публичные IP скрыты; UDP вне прокси запрещён".into(),
+            WebRtcPolicy::Disabled => "WebRTC отключён политикой профиля".into(),
         },
     });
     f.push(Finding {
@@ -814,98 +819,8 @@ impl PrivacyState {
 }
 
 // ---------------------------------------------------------------------------
-// Built-in tracker rules
+// Built-in tracker rules — see `blocklists.rs` (domains + cosmetic CSS).
 // ---------------------------------------------------------------------------
-
-/// A compact built-in list of well-known tracking/ad/fingerprint/malicious
-/// domains across categories. Ships with the binary so protection works
-/// offline on first launch; bigger lists come via custom lists (§10A.11).
-fn builtin_rules() -> Vec<(&'static str, TrackerCategory)> {
-    use TrackerCategory::*;
-    vec![
-        // Analytics
-        ("google-analytics.com", Analytics),
-        ("googletagmanager.com", Analytics),
-        ("analytics.google.com", Analytics),
-        ("segment.io", Analytics),
-        ("segment.com", Analytics),
-        ("mixpanel.com", Analytics),
-        ("amplitude.com", Analytics),
-        ("heap.io", Analytics),
-        ("hotjar.com", Analytics),
-        ("mouseflow.com", Analytics),
-        ("fullstory.com", Analytics),
-        ("matomo.cloud", Analytics),
-        ("statcounter.com", Analytics),
-        ("quantserve.com", Analytics),
-        ("scorecardresearch.com", Analytics),
-        ("chartbeat.com", Analytics),
-        ("clicky.com", Analytics),
-        ("mc.yandex.ru", Analytics),
-        ("clarity.ms", Analytics),
-        ("bat.bing.com", Analytics),
-        // Advertising
-        ("doubleclick.net", Advertising),
-        ("googlesyndication.com", Advertising),
-        ("googleadservices.com", Advertising),
-        ("adservice.google.com", Advertising),
-        ("adnxs.com", Advertising),
-        ("adsystem.com", Advertising),
-        ("amazon-adsystem.com", Advertising),
-        ("criteo.com", Advertising),
-        ("criteo.net", Advertising),
-        ("taboola.com", Advertising),
-        ("outbrain.com", Advertising),
-        ("rubiconproject.com", Advertising),
-        ("pubmatic.com", Advertising),
-        ("openx.net", Advertising),
-        ("casalemedia.com", Advertising),
-        ("smartadserver.com", Advertising),
-        ("adform.net", Advertising),
-        ("yieldmo.com", Advertising),
-        ("sharethrough.com", Advertising),
-        ("33across.com", Advertising),
-        ("bidswitch.net", Advertising),
-        ("teads.tv", Advertising),
-        ("media.net", Advertising),
-        ("revcontent.com", Advertising),
-        ("mgid.com", Advertising),
-        ("propellerads.com", Advertising),
-        ("popads.net", Advertising),
-        ("adroll.com", Advertising),
-        // Social trackers
-        ("facebook.net", Social),
-        ("connect.facebook.net", Social),
-        ("platform.twitter.com", Social),
-        ("syndication.twitter.com", Social),
-        ("cdn.syndication.twimg.com", Social),
-        ("platform.linkedin.com", Social),
-        ("snap.licdn.com", Social),
-        ("assets.pinterest.com", Social),
-        ("events.redditmedia.com", Social),
-        ("static.ads-twitter.com", Social),
-        ("top-fwz1.mail.ru", Social),
-        // Fingerprinting scripts
-        ("fingerprintjs.com", Fingerprinting),
-        ("fpjs.io", Fingerprinting),
-        ("fptls.com", Fingerprinting),
-        ("iovation.com", Fingerprinting),
-        ("threatmetrix.com", Fingerprinting),
-        ("perimeterx.net", Fingerprinting),
-        ("px-cdn.net", Fingerprinting),
-        ("distiltag.com", Fingerprinting),
-        ("bluekai.com", Fingerprinting),
-        ("krxd.net", Fingerprinting),
-        ("demdex.net", Fingerprinting),
-        ("omtrdc.net", Fingerprinting),
-        ("everesttech.net", Fingerprinting),
-        // Malicious / deceptive
-        ("coinhive.com", Malicious),
-        ("authedmine.com", Malicious),
-        ("cryptoloot.pro", Malicious),
-        ("jsecoin.com", Malicious),
-    ]
-}
 
 #[cfg(test)]
 mod tests {
@@ -957,10 +872,10 @@ mod tests {
     fn inspect_respects_policy_and_counts_stats() {
         let b = TrackerBlocker::new();
         let policy = PrivacyPolicy::for_level(PrivacyLevel::Standard);
-        // Standard blocks trackers (incl. analytics/social/fingerprinting);
-        // advertising domains also fall under `block_trackers`.
+        // Standard now blocks ads too (out-of-the-box adblocking);
+        // advertising domains fall under both switches.
         assert!(policy.block_trackers);
-        assert!(!policy.block_ads);
+        assert!(policy.block_ads);
         assert_eq!(b.inspect("google-analytics.com", &policy), Some(TrackerCategory::Analytics));
         assert_eq!(b.inspect("doubleclick.net", &policy), Some(TrackerCategory::Advertising));
 

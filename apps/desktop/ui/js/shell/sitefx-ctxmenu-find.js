@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // Custom right-click menu for the shell GUI (replaces the native one).
 // The graph canvas keeps its own specialized menus.
@@ -83,7 +83,7 @@ function showShellMenu(x, y, target) {
   }
 
   // ---- Профиль ----
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   const profLi = target.closest?.("#profilesList li");
   if (profLi && profLi.dataset.id) {
     const pid = profLi.dataset.id;
@@ -184,7 +184,7 @@ function showShellMenu(x, y, target) {
     items.push(ctxItem("＋ Новая вкладка", () => document.getElementById("newTabBtn").click()));
     items.push(ctxItem("⚙ Настройки", () => openInternal("settings")));
   }
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   const m = document.createElement("div");
   m.className = "graph-menu";
   // Меню ВСЕГДА у курсора. Раньше его «убегало» от вебвью-дырки костылём,
@@ -239,7 +239,7 @@ function showShellMenu(x, y, target) {
   document.addEventListener("keydown", onDocKey, true);
 }
 // Reuse the same clamping for every popup menu
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 function placeMenuSafe(m, x, y) {
   document.body.appendChild(m);
   requestAnimationFrame(() => {
@@ -318,4 +318,4 @@ document.addEventListener("keydown", (e) => {
 });
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

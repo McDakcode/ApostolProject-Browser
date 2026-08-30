@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use std::sync::Mutex;
@@ -128,4 +128,4 @@ pub(crate) fn save_image_file(
 // the self-contained find bar into the active webview).
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

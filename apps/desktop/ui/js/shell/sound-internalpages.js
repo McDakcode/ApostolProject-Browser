@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // UI sounds — tiny WebAudio blips, no assets
 // ---------------------------------------------------------------------
@@ -156,4 +156,4 @@ document.getElementById("settingsSearch")?.addEventListener("input", (e) => {
 });
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

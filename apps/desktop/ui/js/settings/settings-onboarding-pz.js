@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // First-run onboarding — shown exactly once, at first launch
 // ---------------------------------------------------------------------
@@ -65,7 +65,7 @@ function showOnboarding() {
 // width, glass, motion — persisted in localStorage ("apb-ui").
 // ---------------------------------------------------------------------
 
-const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", sound: true };
+const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", sound: true };
 
 // Curated font stacks for the UI font setting
 const AP_FONTS = {
@@ -104,6 +104,8 @@ function pzApply() {
   document.body.style.fontSize = (p.fontSize || 13) + "px";
   // Tabs position / tools visibility
   document.body.classList.toggle("tabbar-top", p.tabsPos === "top");
+  document.body.classList.toggle("sidebar-right", p.sidebarSide === "right");
+  document.body.classList.toggle("panel-right", p.panelSide === "right");
   document.body.classList.toggle("hide-tools", !!p.hideTools);
   document.body.classList.toggle("no-ws-count", !p.wsCount);
   document.body.classList.toggle("side-hover", !!p.sideHover);
@@ -150,6 +152,8 @@ function pzSyncControls() {
   // Appearance
   const ap = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
   ap("apTabsPos", (el) => { el.value = p.tabsPos || "left"; });
+  ap("apSidebarSide", (el) => { el.value = p.sidebarSide || "left"; });
+  ap("apPanelSide", (el) => { el.value = p.panelSide || "left"; });
   ap("apHideTools", (el) => { el.checked = !!p.hideTools; });
   ap("apFontSel", (el) => { el.value = p.font || "system"; });
   ap("apFontSize", (el) => { el.value = p.fontSize || 13; });
@@ -180,6 +184,8 @@ document.getElementById("pzReset").addEventListener("click", () => {
 // --- Appearance page listeners ---
 const apOn = (id, ev, fn) => document.getElementById(id)?.addEventListener(ev, fn);
 apOn("apTabsPos", "change", (e) => { pzUpdate({ tabsPos: e.target.value }); syncPageLayout(true); setTimeout(syncPageLayout, 240); });
+apOn("apSidebarSide", "change", (e) => { pzUpdate({ sidebarSide: e.target.value }); syncPageLayout(true); setTimeout(syncPageLayout, 240); });
+apOn("apPanelSide", "change", (e) => { pzUpdate({ panelSide: e.target.value }); syncPageLayout(true); setTimeout(syncPageLayout, 240); });
 apOn("apHideTools", "change", (e) => pzUpdate({ hideTools: e.target.checked }));
 apOn("apSideHover", "change", (e) => pzUpdate({ sideHover: e.target.checked }));
 apOn("apFontSel", "change", (e) => pzUpdate({ font: e.target.value }));
@@ -199,7 +205,7 @@ apOn("apWsCount", "change", (e) => pzUpdate({ wsCount: e.target.checked }));
 apOn("apBgDim", "input", (e) => pzUpdate({ bgDim: +e.target.value }));
 
 // --- Downloads folder setting ---
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 async function dlDirRefresh() {
   try {
     const cur = await invoke("dl_dir_get");
@@ -395,7 +401,7 @@ makeResizer("panelResizer", "sidePanel", { persistKey: "panelW", min: 240 });
 // ---------------------------------------------------------------------
 
 const TOUR_KEY = "apb-ui-tour";
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 const TOUR_STEPS = [
   { center: true, title: "👋 Добро пожаловать в AP Browser",
     text: "AP Browser (ApostolProject Browser) — десктопный браузер с упором на приватность. Внутри: настоящие вкладки на движке WebView2, воркспейсы со своими наборами вкладок, изолированные профили, заметки с графом знаний, сейф паролей и AI-ассистент, который умеет работать полностью локально. Никакой телеметрии — все данные остаются только на твоём компьютере. Жми «Далее» — проведу по главным кнопкам." },
@@ -595,7 +601,7 @@ function stopUITour(markDone) {
   }
   _tourDimEl = null;
   if (_tourGhostEl) { _tourGhostEl.remove(); _tourGhostEl = null; }
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   window.removeEventListener("resize", _tourOnResize);
   document.removeEventListener("keydown", _tourOnKey, true);
   _tourIdx = -1;
@@ -796,4 +802,4 @@ setTimeout(() => {
 apOn("tourReplayBtn", "click", () => startUITour(true));
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

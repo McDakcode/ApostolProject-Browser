@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Made by MrDuck && Ox-Alpha -->
+<!-- Made by MrDuck -->
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
 <title>APB — ApostolProject Browser</title>
 <link rel="icon" type="image/png" href="logo.png?v=2" />
-<link rel="stylesheet" href="style.css?v=3" />
+<link rel="stylesheet" href="style.css?v=5" />
 <script>
   document.documentElement.setAttribute("data-theme", localStorage.getItem("apb-theme") || "dark");
 </script>
@@ -38,6 +38,12 @@
     <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="8.5" cy="8.5" r="1.4"/><circle cx="15.5" cy="8.5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8.5" cy="15.5" r="1.4"/><circle cx="15.5" cy="15.5" r="1.4"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 014.5 5h4l2 2.5H20A1.5 1.5 0 0121.5 9v9A1.5 1.5 0 0120 19.5H4.5A1.5 1.5 0 013 18z"/></symbol>
     <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2.8A9.2 9.2 0 002.8 12c0 5.1 4.1 9.2 9.2 9.2 1.5 0 2.3-.9 2.3-2 0-.6-.2-1-.6-1.4-.4-.4-.6-.9-.6-1.4 0-1.1.9-2 2-2h2.3c2.1 0 3.8-1.7 3.8-3.8C21.2 6.4 17 2.8 12 2.8z"/><circle cx="7.5" cy="10.5" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16.5" cy="10.5" r="1.2"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.2"/><path d="M12 4v16"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.7 2.7 0 115 1.5c0 1.6-2.3 1.8-2.3 3.5"/><circle cx="12" cy="17.3" r="0.15" fill="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4.5 16.5l4.7-4.7a2 2 0 012.8 0l1.6 1.6M14 13.5l1-1a2 2 0 012.8 0l2.2 2.2"/></symbol>
+    <symbol id="i-broom" viewBox="0 0 24 24"><path d="M14 3l7 7-8.5 8.5-7-7z"/><path d="M6 14L2.5 20.5c3-1 5.4-.6 7 1L14 16"/></symbol>
   </svg>
 
   <!-- Custom frameless window — controls live INSIDE the toolbar -->
@@ -88,10 +94,10 @@
 
       <!-- Horizontal tabstrip (used when "tabs on top" mode is enabled) -->
       <div class="top-tabstrip" id="topTabstrip">
-        <button id="exitTopBtn" class="icon-btn small ghost" title="Вернуть боковую панель">◧</button>
+        <button id="exitTopBtn" class="icon-btn small ghost" title="Вернуть боковую панель"><svg class="ic"><use href="#i-split"/></svg></button>
         <div class="ws-pills" id="wsStripTop"></div>
         <div class="tab-list-h" id="tabstripH"></div>
-        <button id="ntTopBtn" class="icon-btn small ghost" title="Новая вкладка (Ctrl+T)">+</button>
+        <button id="ntTopBtn" class="icon-btn small ghost" title="Новая вкладка (Ctrl+T)"><svg class="ic"><use href="#i-plus"/></svg></button>
         <span style="flex:1" data-apb-drag></span>
       </div>
 
@@ -100,19 +106,20 @@
           <button id="navBack" class="nav-btn" title="Назад"><svg class="ic"><use href="#i-chevL"/></svg></button>
           <button id="navFwd" class="nav-btn" title="Вперёд"><svg class="ic"><use href="#i-chevR"/></svg></button>
           <button id="navReload" class="nav-btn" title="Обновить"><svg class="ic"><use href="#i-refresh"/></svg></button>
-          <button id="splitBtn" class="nav-btn" title="Разделить экран (сплит)">⬓</button>
+          <button id="splitBtn" class="nav-btn" title="Разделить экран (сплит)"><svg class="ic"><use href="#i-split"/></svg></button>
         </div>
 
         <form id="addressForm" class="address-form">
           <input id="addressInput" type="text" placeholder="Поиск или адрес сайта" autocomplete="off" spellcheck="false" />
           <button type="button" id="darkSiteBtn" class="icon-btn addr-btn" title="Тёмная тема для сайта (если у сайта её нет)"><svg class="ic"><use href="#i-moon"/></svg></button>
-          <button type="submit" title="Перейти">➔</button>
+          <button type="submit" title="Перейти"><svg class="ic"><use href="#i-send"/></svg></button>
         </form>
 
         <div class="profile-group">
           <select id="profileSelect" title="Текущий профиль"></select>
-          <button id="quickCreateProfileBtn" class="icon-btn small" title="Создать профиль">+</button>
+          <button id="quickCreateProfileBtn" class="icon-btn" title="Создать профиль"><svg class="ic"><use href="#i-plus"/></svg></button>
         </div>
+        <button id="shieldBadge" class="shield-badge hidden" title="Максимальный уровень приватности включён"></button>
         <button id="settingsBtn" class="icon-btn" title="Настройки"><svg class="ic"><use href="#i-gear"/></svg></button>
 
         <!-- Window controls integrated into the toolbar (custom frameless window) -->
@@ -178,7 +185,7 @@
             </section>
 
           </div>
-<!-- Made by MrDuck && Ox-Alpha -->
+<!-- Made by MrDuck -->
           <div class="pane-resizer right" id="panelResizer" title="Потяните, чтобы изменить ширину панели"></div>
         </aside>
 
@@ -188,13 +195,16 @@
           <!-- Internal pages (settings / vault / extensions) — "site-like" pages -->
           <div class="internal-host hidden" id="internalHost">
             <nav class="isec-nav">
-              <button class="isec-link active" data-isec="settings">⚙ Настройки</button>
-              <button class="isec-link" data-isec="appearance">🎨 Оформление</button>
-              <button class="isec-link" data-isec="privacy">🛡 Приватность</button>
-              <button class="isec-link" data-isec="history">🕘 История</button>
-              <button class="isec-link" data-isec="vault">🔑 Пароли</button>
-              <button class="isec-link" data-isec="extensions">🧩 Расширения</button>
-              <input id="settingsSearch" class="isec-search" type="text" placeholder="🔍 Поиск…" autocomplete="off" spellcheck="false" />
+              <button class="isec-link active" data-isec="settings"><svg class="ic"><use href="#i-gear"/></svg> Настройки</button>
+              <button class="isec-link" data-isec="appearance"><svg class="ic"><use href="#i-palette"/></svg> Оформление</button>
+              <button class="isec-link" data-isec="privacy"><svg class="ic"><use href="#i-shield"/></svg> Приватность</button>
+              <button class="isec-link" data-isec="history"><svg class="ic"><use href="#i-clock"/></svg> История</button>
+              <button class="isec-link" data-isec="vault"><svg class="ic"><use href="#i-key"/></svg> Пароли</button>
+              <button class="isec-link" data-isec="extensions"><svg class="ic"><use href="#i-puzzle"/></svg> Расширения</button>
+              <div class="isec-search-wrap">
+                <svg class="ic isec-search-icon"><use href="#i-search"/></svg>
+                <input id="settingsSearch" class="isec-search" type="text" placeholder="Поиск…" autocomplete="off" spellcheck="false" />
+              </div>
             </nav>
             <div class="isec-body">
 
@@ -309,7 +319,18 @@
                 <label class="checkbox-row"><input type="checkbox" id="flagThirdPartyCookies" /> Сторонние cookies — блок</label>
                 <label class="checkbox-row"><input type="checkbox" id="flagHttpsOnly" /> HTTPS-only режим</label>
                 <label class="checkbox-row"><input type="checkbox" id="flagClearOnExit" /> Чистить cookies при выходе</label>
-                <p class="hint">Трекеры, реклама и опасные домены блокируются на сетевом уровне через встроенный локальный прокси.</p>
+                <div class="row">
+                  <select id="webrtcSelect">
+                    <option value="Enabled">WebRTC: включён</option>
+                    <option value="HidePublicIps">WebRTC: скрыть публичные IP</option>
+                    <option value="Disabled">WebRTC: выключен</option>
+                  </select>
+                </div>
+                <p class="hint">Применение к трафику: домены режет встроенный прокси; HTTPS-only апгрейдит http→https;
+                  сторонние cookies блокируются в сети (http) и в кросс-доменных фреймах (шим);
+                  WebRTC: UDP вне прокси запрещён всегда; Referer обрезается по политике.
+                  Изменения шима действуют во вкладках, созданных после смены политики.</p>
+                <p class="hint" id="enforceHint"></p>
 
                 <p class="panel-subtitle">Статистика и аудит</p>
                 <ul id="auditList" class="list"></ul>
@@ -322,6 +343,14 @@
                   <textarea id="blocklistText" rows="4" placeholder="tracker.example&#10;0.0.0.0 ads.example"></textarea>
                   <button id="blocklistAddBtn">Добавить</button>
                 </details>
+
+                <p class="panel-subtitle">Исключения сайтов</p>
+                <div class="row">
+                  <input id="overrideHostInput" placeholder="example.com" style="flex:1" />
+                  <button id="overrideAllowBtn">🛡 Разрешить трекеры</button>
+                </div>
+                <ul id="siteOverridesList" class="list"></ul>
+                <p class="hint">Домен и все его поддомены исключаются из сетевой блокировки — действует сразу.</p>
               </section>
 
               <section id="appearance" class="panel internal-page" data-searchable>
@@ -367,6 +396,18 @@
                   <select id="apTabsPos">
                     <option value="left">Слева (боковая панель)</option>
                     <option value="top">Сверху (как у всех)</option>
+                  </select>
+                </div>
+                <div class="pz-row"><span>Сторона боковой панели вкладок</span>
+                  <select id="apSidebarSide">
+                    <option value="left">Слева</option>
+                    <option value="right">Справа</option>
+                  </select>
+                </div>
+                <div class="pz-row"><span>Сторона панели (закладки/история/заметки)</span>
+                  <select id="apPanelSide">
+                    <option value="left">Слева</option>
+                    <option value="right">Справа</option>
                   </select>
                 </div>
                 <label class="pz-row"><span>Скрыть инструменты слева снизу</span><input type="checkbox" id="apHideTools" /></label>
@@ -417,7 +458,7 @@
 
               
 
-<!-- Made by MrDuck && Ox-Alpha -->
+<!-- Made by MrDuck -->
               <section id="history" class="panel internal-page wide-page">
                 <h2 class="internal-title">История</h2>
                 <div class="row hist-tools">
@@ -462,9 +503,9 @@
                   <div class="pw-toolbar">
                     <input id="vaultSearch" type="text" placeholder="Поиск по названию, логину, URL…" />
                     <button id="pwGenBtn" class="icon-btn small" title="Генератор паролей"><svg class="ic"><use href="#i-dice"/></svg></button>
-                    <button id="pwImportBtn" class="ghost-btn small" title="Импорт из JSON">📥 Импорт</button>
-                    <button id="pwExportBtn" class="ghost-btn small" title="Экспорт в JSON">💾 Экспорт</button>
-                    <input type="file" id="pwImportFile" accept=".json,application/json" style="display:none" />
+                    <button id="pwImportBtn" class="ghost-btn small" title="Импорт из CSV (Chrome, Firefox, Bitwarden)">📥 Импорт</button>
+                    <button id="pwExportBtn" class="ghost-btn small" title="Экспорт в CSV">💾 Экспорт</button>
+                    <input type="file" id="pwImportFile" accept=".csv,text/csv" style="display:none" />
                   </div>
                   <div id="pwGenRow" class="hidden pw-gen-row">
                     <span id="pwGenOut" class="mono"></span>
@@ -477,7 +518,7 @@
                     <summary>+ Добавить запись</summary>
                     <input id="veTitle" placeholder="Название (GitHub)" />
                     <input id="veUser" placeholder="Логин" />
-                    <input id="vePass" placeholder="Пароль" />
+                    <input id="vePass" type="password" placeholder="Пароль" autocomplete="new-password" />
                     <input id="veUrl" placeholder="URL (необязательно)" />
                     <button id="veAddBtn">Сохранить запись</button>
                   </details>
@@ -619,7 +660,7 @@
                     <li>![подпись](assets/файл.png) — картинка из заметки</li>
                   </ul>
                 </div>
-<!-- Made by MrDuck && Ox-Alpha -->
+<!-- Made by MrDuck -->
                 <div class="gh-group">
                   <h4>🗂 Папки</h4>
                   <ul>
@@ -807,15 +848,15 @@
     });
   </script>
   <script src="js/core/debug-log.js"></script>
-  <script src="js/core/boot-core.js?v=4"></script>
+  <script src="js/core/boot-core.js?v=5"></script>
   <script src="js/shell/updater-ui.js?v=2"></script>
   <script src="js/shell/sitefx-ctxmenu-find.js?v=10"></script>
   <script src="js/shell/theme-searchengines.js"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>
   <script src="js/shell/sound-internalpages.js?v=2"></script>
-  <script src="js/tabs/session-ws-downloads-tabs.js?v=12"></script>
+  <script src="js/tabs/session-ws-downloads-tabs.js?v=14"></script>
   <script src="js/home/home-widgets.js"></script>
-  <script src="js/panels/omnibox-library-panels.js?v=11"></script>
+  <script src="js/panels/omnibox-library-panels.js?v=16"></script>
   <script src="js/notes/notes-editor.js?v=8"></script>
   <script src="js/settings/settings-onboarding-pz.js?v=13"></script>
   <script src="js/graph/graph-settings.js"></script>
@@ -823,4 +864,4 @@
 </body>
 </html>
 
-<!-- Made by MrDuck && Ox-Alpha -->
+<!-- Made by MrDuck -->

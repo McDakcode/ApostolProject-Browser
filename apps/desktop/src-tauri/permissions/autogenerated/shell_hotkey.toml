@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-hotkey"
+description = "Enables the shell_hotkey command without any pre-configured scope."
+commands.allow = ["shell_hotkey"]
+
+[[permission]]
+identifier = "deny-shell-hotkey"
+description = "Denies the shell_hotkey command without any pre-configured scope."
+commands.deny = ["shell_hotkey"]

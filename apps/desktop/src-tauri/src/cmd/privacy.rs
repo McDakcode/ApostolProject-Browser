@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::cmd::ai::load_ai_config;
@@ -33,6 +33,14 @@ pub(crate) fn get_privacy_overview(
     let findings = apb_privacy::run_audit(&policy, &inputs);
     let snap: Arc<PrivacySnap> = filter.get();
     let live = snap.blocker.stats();
+    let enforcement = {
+        let st = crate::liveprivacy::enforce_status();
+        serde_json::json!({
+            "doh": st.doh,
+            "upstream": st.upstream,
+            "webrtc": "UDP вне прокси запрещён на уровне движка",
+        })
+    };
     Ok(serde_json::json!({
         "level": active.privacy.policy.level,
         "emergency": active.privacy.emergency_mode,
@@ -47,6 +55,13 @@ pub(crate) fn get_privacy_overview(
             "proxy_live": true,
         },
         "custom_lists": active.privacy.custom_lists,
+        "site_overrides": active
+            .privacy
+            .site_overrides
+            .iter()
+            .map(|(h, o)| serde_json::json!({ "host": h, "allow_trackers": o.allow_trackers }))
+            .collect::<Vec<_>>(),
+        "enforcement": enforcement,
         "threats": active.privacy.threats,
     }))
 }
@@ -152,6 +167,46 @@ pub(crate) fn add_blocklist(
     Ok(added)
 }
 
+/// Download a full filter list (hosts / AdGuard-DNS / ABP domain syntax),
+/// parse domains out of it and install as a persistent per-profile custom
+/// list. Re-downloading the same name REPLACES the previous copy, so
+/// «обновить список» = вызвать ещё раз. Async: network I/O on a worker.
+#[tauri::command]
+pub(crate) async fn add_blocklist_from_url(
+    app: AppHandle,
+    state: tauri::State<'_, SharedState>,
+    name: String,
+    url: String,
+) -> Result<usize, String> {
+    if !url.starts_with("https://") {
+        return Err("URL списка должен начинаться с https://".into());
+    }
+    let text = ureq::get(&url)
+        .timeout(std::time::Duration::from_secs(90))
+        .call()
+        .map_err(|e| format!("не удалось скачать список: {e}"))?
+        .into_string()
+        .map_err(|e| format!("не удалось прочитать список: {e}"))?;
+    let domains = apb_privacy::blocklists::extract_domains(&text);
+    if domains.is_empty() {
+        return Err("в списке не найдено ни одного домена — проверьте URL".into());
+    }
+    let body = domains.join("\n");
+    let category = apb_privacy::TrackerCategory::Advertising;
+    let mut guard = state.lock().unwrap();
+    let added = {
+        let active = guard.active_mut_or_err()?;
+        active.privacy.custom_lists.retain(|l| l.name != name);
+        let n = active.blocker.add_custom_list(&body, category);
+        active.privacy.custom_lists.push(apb_privacy::CustomList { name, category, text: body });
+        n
+    };
+    guard.persist_active_config()?;
+    drop(guard);
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(added)
+}
+
 /// Удалить пользовательский список по имени и пересобрать базу доменов
 /// из оставшихся (builtin-правила возвращаются автоматически через
 /// TrackerBlocker::new). Живой фильтр синхронизируется сразу.
@@ -180,6 +235,76 @@ pub(crate) fn remove_blocklist(
     crate::liveprivacy::sync_from_state(&app)?;
     Ok(())
 }
+
+/// Site exceptions (§10A.9): allow/block a host on the network-layer
+/// blocker. `host` may come as a full URL — it is sanitized down to the
+/// bare domain (subdomains inherit automatically).
+#[tauri::command]
+pub(crate) fn site_override_set(
+    app: AppHandle,
+    state: tauri::State<'_, SharedState>,
+    host: String,
+    allow: bool,
+) -> Result<String, String> {
+    let host = sanitize_override_host(&host)?;
+    {
+        let mut guard = state.lock().unwrap();
+        let active = guard.active_mut_or_err()?;
+        let entry = active
+            .privacy
+            .site_overrides
+            .entry(host.clone())
+            .or_insert_with(|| apb_privacy::SiteOverride::new(host.clone()));
+        entry.allow_trackers = allow;
+        guard.persist_active_config()?;
+    }
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(host)
+}
+
+#[tauri::command]
+pub(crate) fn site_override_remove(
+    app: AppHandle,
+    state: tauri::State<'_, SharedState>,
+    host: String,
+) -> Result<(), String> {
+    let host = sanitize_override_host(&host)?;
+    {
+        let mut guard = state.lock().unwrap();
+        let active = guard.active_mut_or_err()?;
+        if active.privacy.site_overrides.remove(&host).is_none() {
+            return Err(format!("исключение «{host}» не найдено"));
+        }
+        guard.persist_active_config()?;
+    }
+    crate::liveprivacy::sync_from_state(&app)?;
+    Ok(())
+}
+
+/// URL/domain → bare lowercase domain. Rejects junk before it reaches the
+/// blocker map.
+fn sanitize_override_host(input: &str) -> Result<String, String> {
+    let mut h = input.trim().to_lowercase();
+    if let Some(idx) = h.find("://") {
+        h = h[idx + 3..].to_string();
+    }
+    let h = h.split(['/', '?', '#']).next().unwrap_or("").to_string();
+    let h = h.rsplit_once(':').map(|(x, _)| x.to_string()).unwrap_or(h);
+    let h = h.trim_matches(['[', ']', '.']).to_string();
+    if h.is_empty() || !h.contains('.') {
+        return Err(format!("«{input}» не похоже на домен"));
+    }
+    if !h
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+        || h.contains("..")
+    {
+        return Err(format!("«{h}» содержит недопустимые символы"));
+    }
+    Ok(h)
+}
+
+// Made by MrDuck
 
 /// Panic Button (§10A.26): wipe traces of the current session in one shot.
 #[tauri::command]
@@ -224,4 +349,4 @@ pub(crate) fn panic_button(
 // Network (§10A.6 — DoH/DoT, proxy chains, route preview)
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -32,4 +32,4 @@ pub(crate) fn search_bookmarks(state: tauri::State<'_, SharedState>, query: Stri
 // History (§10A.3 — respects each profile's RecordingPolicy)
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

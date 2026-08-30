@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // Address bar — smart URL vs. search resolution.
 // ---------------------------------------------------------------------
@@ -282,7 +282,7 @@ function omniHighlight() {
 }
 
 function omniRender(q) {
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   const query = (q || "").trim().toLowerCase();
   if (!query) { omniHide(); return; }
   invoke("recent_history", { limit: 200 }).then((list) => {
@@ -477,6 +477,40 @@ const PRIVACY_FLAGS = [
 
 let currentPrivacyPolicy = null;
 
+// ---------------------------------------------------------------------
+// Shield-индикатор в тулбаре (виден всегда — тулбар не перекрывается
+// вебвью). MAX = фиолетовый бейдж, Emergency = красный пульсирующий.
+// ---------------------------------------------------------------------
+async function updateShieldIndicator(ovPre) {
+  const el = document.getElementById("shieldBadge");
+  if (!el) return;
+  try {
+    const ov = ovPre || await invoke("get_privacy_overview");
+    const emg = !!ov.emergency;
+    const max = String(ov.level) === "Maximum";
+    el.classList.toggle("emergency", emg);
+    el.classList.toggle("max", !emg && max);
+    if (emg) {
+      el.textContent = "🚨 Экстренный режим";
+      el.title = "Emergency Privacy Mode включён — клик открывает настройки приватности";
+      el.classList.remove("hidden");
+    } else if (max) {
+      el.textContent = "🛡 МАКС защита";
+      el.title = "Включён максимальный уровень приватности — клик открывает настройки";
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+  } catch (e) { /* профиль ещё не готов */ }
+}
+
+document.getElementById("shieldBadge").addEventListener("click", async () => {
+  openInternal("privacy");
+  await refreshPrivacy();
+});
+
+setTimeout(() => { try { if (typeof updateShieldIndicator === "function") updateShieldIndicator(); } catch {} }, 0);
+
 async function refreshPrivacy() {
   const ov = await invoke("get_privacy_overview");
   currentPrivacyPolicy = ov.policy;
@@ -498,6 +532,21 @@ async function refreshPrivacy() {
       await invoke("update_privacy_policy", { policy: currentPrivacyPolicy });
       await refreshPrivacy();
     };
+  }
+
+  const wrSel = document.getElementById("webrtcSelect");
+  wrSel.value = ov.policy.webrtc || "Enabled";
+  wrSel.onchange = async () => {
+    if (!currentPrivacyPolicy) return;
+    currentPrivacyPolicy.webrtc = wrSel.value;
+    currentPrivacyPolicy.level = "Custom";
+    await invoke("update_privacy_policy", { policy: currentPrivacyPolicy });
+    await refreshPrivacy();
+  };
+
+  const eh = document.getElementById("enforceHint");
+  if (eh && ov.enforcement) {
+    eh.textContent = `Маршрут: ${ov.enforcement.upstream || "прямой"} · DNS: ${ov.enforcement.doh || "системный"} · ${ov.enforcement.webrtc || ""}`;
   }
 
   const auditList = document.getElementById("auditList");
@@ -577,6 +626,32 @@ async function refreshPrivacy() {
     }
   }
 
+  // Исключения сайтов: сетевой блокировщик пропускает домен + поддомены
+  const ovList = document.getElementById("siteOverridesList");
+  if (ovList) {
+    ovList.innerHTML = "";
+    for (const o of (ov.site_overrides || [])) {
+      const li = document.createElement("li");
+      li.innerHTML =
+        `<div><div class="title">🛡 ${escapeHtml(o.host)}</div>` +
+        `<div class="meta">${o.allow_trackers ? "трекеры разрешены" : "в списке исключений"}</div></div>`;
+      const x = document.createElement("button");
+      x.className = "close";
+      x.textContent = "✕";
+      x.title = "Убрать исключение";
+      x.onclick = async (ev) => {
+        ev.stopPropagation();
+        try {
+          await invoke("site_override_remove", { host: o.host });
+          await refreshPrivacy();
+          toast("Исключение убрано");
+        } catch (err) { alert("Ошибка: " + err); }
+      };
+      li.appendChild(x);
+      ovList.appendChild(li);
+    }
+  }
+
   const dashboard = ov.dashboard || [];
   if (dashboard.length && !document.getElementById("fpDash")) {
     const p = document.createElement("p");
@@ -597,6 +672,8 @@ async function refreshPrivacy() {
       fp.appendChild(li);
     }
   }
+
+  updateShieldIndicator(ov);
 }
 
 document.getElementById("privacyLevelSelect").addEventListener("change", async (e) => {
@@ -620,6 +697,25 @@ document.getElementById("blocklistAddBtn").addEventListener("click", async () =>
   await refreshPrivacy();
 });
 
+document.getElementById("overrideAllowBtn").addEventListener("click", async () => {
+  const input = document.getElementById("overrideHostInput");
+  let host = input.value.trim();
+  if (!host) {
+    // Пустой ввод → берём домен активной вкладки (если это сайт)
+    const t = typeof activeTab === "function" ? activeTab() : null;
+    if (t && t.url && /^https?:/i.test(t.url)) {
+      try { host = new URL(t.url).hostname; } catch (e) {}
+    }
+  }
+  if (!host) return alert("Укажите домен, например example.com");
+  try {
+    const saved = await invoke("site_override_set", { host, allow: true });
+    input.value = "";
+    toast(`«${saved}» исключён из блокировки`);
+    await refreshPrivacy();
+  } catch (err) { alert("Ошибка: " + err); }
+});
+
 async function toggleEmergencyShortcut() {
   const ov = await invoke("get_privacy_overview");
   await invoke("set_emergency_mode", { on: !ov.emergency });
@@ -632,7 +728,7 @@ async function toggleEmergencyShortcut() {
 // ---------------------------------------------------------------------
 
 async function runPanicButton() {
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   const done = await invoke("panic_button");
   openInternal("privacy");
   await Promise.all([refreshHistory(), refreshPrivacy()]);
@@ -782,13 +878,13 @@ function renderVaultEntries() {
     btns.appendChild(mk("📋 Логин", async () => {
       try {
         const e = await invoke("vault_reveal", { id });
-        if (e.username) await navigator.clipboard.writeText(e.username);
+        if (e.username) { await navigator.clipboard.writeText(e.username); toast("Логин скопирован"); }
       } catch (err) { alert(err); }
     }));
     btns.appendChild(mk("🔑 Пароль", async () => {
       try {
         const e = await invoke("vault_reveal", { id });
-        if (e.password) await navigator.clipboard.writeText(e.password);
+        if (e.password) { await navigator.clipboard.writeText(e.password); toast("Пароль скопирован"); }
       } catch (err) { alert(err); }
     }));
     card.append(head, user, btns);
@@ -902,7 +998,8 @@ document.getElementById("pwExportBtn")?.addEventListener("click", async () => {
         entries.push(e);
       } catch { /* skip unreadable */ }
     }
-    let csv = "name,url,username,password\n";
+    // \uFEFF (BOM) в начале — иначе Excel открывает UTF-8 CSV с битой кириллицей.
+    let csv = "\uFEFFname,url,username,password\r\n";
     for (const e of entries) {
       csv += [csvEscape(e.title), csvEscape(e.url), csvEscape(e.username), csvEscape(e.password)].join(",") + "\r\n";
     }
@@ -919,29 +1016,44 @@ document.getElementById("pwImportFile")?.addEventListener("change", async (e) =>
   const file = e.target.files && e.target.files[0];
   e.target.value = "";
   if (!file) return;
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   let rows;
   try { rows = parseCSV(await file.text()); }
   catch { alert("Не удалось прочитать файл как CSV."); return; }
   if (!rows.length) { alert("Файл пуст."); return; }
-  // Header detection
-  const head = rows[0].map((h) => h.trim().toLowerCase());
-  const findCol = (re) => head.findIndex((h) => re.test(h));
-  let iName = findCol(/^(name|title|имя)$/), iUrl = findCol(/url|сайт/),
-      iUser = findCol(/username|login|user|логин/i), iPass = findCol(/password|pass|пароль/i);
-  let dataRows = rows.slice(1);
-  if (iName < 0 || iPass < 0) { // headerless: assume name,url,user,pass
+  // Header detection: сначала точные имена колонок Chrome/Bitwarden, потом
+  // общие слова. \uFEFF срезаем — наш экспорт кладёт BOM ради Excel.
+  const head = rows[0].map((h) => h.replace(/^\uFEFF/, "").trim().toLowerCase());
+  const findCol = (...patterns) => {
+    for (const re of patterns) {
+      const i = head.findIndex((h) => re.test(h));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  // "username" содержит "name" — отсекаем негативным lookahead, иначе
+  // имя записи уедет в логин (например, на CSV из Firefox).
+  let iName = findCol(/^(name|title|имя)$/, /^(?!.*(user|логин)).*(name|title|имя)/);
+  let iUrl = findCol(/^(url|login_uri)$/, /url|uri|website|сайт/);
+  let iUser = findCol(/^(username|login_username)$/, /username|login|user|логин/);
+  let iPass = findCol(/^(password|login_password)$/, /pass|пароль/);
+  let dataRows;
+  if (iPass < 0) { // заголовок не распознан: считаем колонки name,url,user,pass с первой строки
     iName = 0; iUrl = 1; iUser = 2; iPass = 3;
     dataRows = rows;
+  } else {
+    dataRows = rows.slice(1);
   }
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
   const valid = dataRows
     .map((r) => ({
       title: (r[iName] || "").trim(),
       url: (r[iUrl] || "").trim() || null,
-      username: (r[iUser] || "").trim() || null,
+      username: (iUser >= 0 ? (r[iUser] || "") : "").trim() || null,
       password: (r[iPass] || "").trim(),
     }))
-    .filter((r) => r.title && r.password);
+    .map((r) => ({ ...r, title: r.title || hostOf(r.url || "") })) // Firefox отдаёт записи без name-колонки
+    .filter((r) => r.title && r.password && r.password.toLowerCase() !== "password");
   if (!valid.length) { alert("Не найдено ни одной записи с названием и паролем."); return; }
   if (!(await confirm(`Импортировать ${valid.length} записей в сейф?`))) return;
   let ok = 0;
@@ -1203,4 +1315,4 @@ document.getElementById("extInstallBtn").addEventListener("click", async () => {
 });
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

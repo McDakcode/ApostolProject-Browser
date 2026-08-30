@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 
 function escapeHtml(s) {
@@ -142,7 +142,7 @@ const mdActions = {
   hr: () => insertAtCursor("\n\n---\n\n"),
   code: () => wrapSel("\n```\n", "\n```\n", "code"),
   link: async () => {
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
     const url = await prompt("URL сайта:", "https://");
     if (url) wrapSel("[", "](" + url + ")", "текст");
   },
@@ -160,7 +160,7 @@ function insertAtCursor(text) {
 
 document.getElementById("mdToolbar").addEventListener("click", (e) => {
   if (e.target.closest("#mdHelpBtn")) return; // своя логика ниже
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   const b = e.target.closest("button[data-md]");
   if (b && mdActions[b.dataset.md]) mdActions[b.dataset.md]();
 });
@@ -176,7 +176,7 @@ edText.addEventListener("keydown", (e) => {
 // ---- Markdown renderer (tables, wikilinks, tasks, callouts, images) ----
 
 function inlineMd(src) {
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
   let h = escapeHtml(src);
   h = h.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,
     (_, alt, src2) => `<img src="${src2}" alt="${alt}">`);
@@ -800,4 +800,4 @@ function moveWidget(id, dir) {
 }
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

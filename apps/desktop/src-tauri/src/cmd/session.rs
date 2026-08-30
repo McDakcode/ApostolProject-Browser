@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -35,4 +35,4 @@ pub(crate) fn session_save(
 // Downloads commands
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

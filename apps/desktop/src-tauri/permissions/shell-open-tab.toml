@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-shell-open-tab"
+description = "Allows page content (including remote-origin tabs) to ask the shell to open a URL as a new browser tab."
+commands.allow = ["shell_open_tab"]

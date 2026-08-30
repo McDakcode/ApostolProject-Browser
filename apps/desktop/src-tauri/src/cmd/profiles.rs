@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use apb_profiles::Profile;
@@ -102,4 +102,4 @@ pub(crate) fn delete_profile(
 // Bookmarks (§7)
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

@@ -56,15 +56,25 @@ pub const KNOWN_DOH_PROVIDERS: &[(&str, &str)] = &[
 pub struct DnsConfig {
     pub mode: DnsMode,
     /// Plain DNS servers for Custom mode (IP strings).
+    #[serde(default)]
     pub custom_servers: Vec<String>,
     /// DoH endpoint URL for Doh mode.
+    #[serde(default)]
     pub doh_url: String,
     /// DoT server `host:853` for Dot mode.
+    #[serde(default)]
     pub dot_server: String,
     /// DNS leak protection: when routing through a proxy, forbid falling
-    /// back to system resolution (§10A.6).
+    /// back to system resolution (§10A.6). Advisory today — resolution is
+    /// fail-open so a dead resolver never blacks out the web.
+    #[serde(default = "default_true")]
     pub prevent_leaks: bool,
+    #[serde(default = "default_true")]
     pub cache_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for DnsConfig {

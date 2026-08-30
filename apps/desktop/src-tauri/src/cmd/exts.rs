@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -75,4 +75,4 @@ pub(crate) fn ext_sandbox_policy(
 // content-area rect via `page_relayout` (tabstrip + toolbar stack on top,
 // icon rail on the left — see ui/index.html).
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

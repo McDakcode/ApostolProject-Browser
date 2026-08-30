@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // APB auto-update UI: startup check → центральное окно «Обновить сейчас /
 // Позже» (обязательное — без «Позже» и без закрытия), после установки и
 // перезапуска — окно «Что нового». Пока окно открыто — нативные вебвью
@@ -216,4 +216,4 @@
   window.APBUpdate = { checkNow };
 })();
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

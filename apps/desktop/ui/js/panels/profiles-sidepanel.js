@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // ---------------------------------------------------------------------
 // Profiles
 // ---------------------------------------------------------------------
@@ -44,6 +44,8 @@ async function loadProfiles() {
     <span class="badge">${active.storage_mode === "Ephemeral" ? "история не пишется" : "история сохраняется"}</span>
     <span class="badge">поиск: ${active.search_engine}</span>
   `;
+
+  if (typeof updateShieldIndicator === "function") updateShieldIndicator();
 }
 
 document.getElementById("profileSelect").addEventListener("change", async (e) => {
@@ -114,4 +116,4 @@ function ensureHomeVisible() {
 // 06-session-ws-downloads-tabs.js — it must run AFTER the real
 // syncPageLayout declaration (no cross-file hoisting anymore).
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-shell-hotkey"
+description = "Allows page content (including remote-origin tabs) to relay a hotkey press to the shell."
+commands.allow = ["shell_hotkey"]

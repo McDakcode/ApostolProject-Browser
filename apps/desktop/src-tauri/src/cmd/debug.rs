@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 //! Debug logging for the demo/debug build.
 //!
 //! The frontend buffers diagnostics (JS errors, unhandled rejections,
@@ -41,6 +41,33 @@ fn logs_dir(app: &tauri::AppHandle) -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("logs"))
 }
 
+/// Backend-side log line (no AppHandle available on proxy/resolver threads):
+/// env override → project-root discovery by walking up from the exe.
+/// Silent no-op when neither yields a directory (e.g. installed copy).
+pub(crate) fn append_backend_log(line: &str) {
+    let dir = std::env::var("APB_LOG_DIR").ok().map(PathBuf::from).or_else(|| {
+        std::env::current_exe().ok().and_then(|exe| {
+            exe.ancestors().skip(1).find_map(|anc| {
+                (anc.join("Cargo.toml").is_file() && anc.join("apps").is_dir())
+                    .then(|| anc.join("logs"))
+            })
+        })
+    });
+    let Some(dir) = dir else { return };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let path = dir.join("shell-debug.log");
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > MAX_BYTES {
+            let _ = std::fs::rename(&path, dir.join("shell-debug.log.old"));
+        }
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
 #[tauri::command]
 pub(crate) fn debug_log_append(
     app: tauri::AppHandle,
@@ -72,4 +99,4 @@ pub(crate) fn debug_log_append(
 }
 
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

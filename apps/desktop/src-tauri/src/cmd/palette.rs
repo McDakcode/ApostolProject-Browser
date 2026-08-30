@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -14,4 +14,4 @@ pub(crate) fn search_commands(state: tauri::State<'_, SharedState>, query: Strin
 // Privacy Engine (§10, §10A)
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

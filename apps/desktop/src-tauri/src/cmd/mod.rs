@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 //! Command handlers grouped by domain.
 //!
 //! Each submodule owns one feature domain and mirrors the frontend module
@@ -54,4 +54,4 @@ pub(crate) use update::*;
 pub(crate) use vault::*;
 pub(crate) use workspaces::*;
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

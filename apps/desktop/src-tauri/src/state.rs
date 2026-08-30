@@ -1,4 +1,4 @@
-﻿// Made by MrDuck && Ox-Alpha
+﻿// Made by MrDuck
 //! Shared application state for the Tauri shell.
 //!
 //! Holds the `ProfileManager` (device-wide) plus the currently *active*
@@ -171,4 +171,4 @@ fn build_command_registry() -> CommandRegistry {
     r
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::state::{AppState, SharedState};
@@ -94,4 +94,4 @@ pub(crate) fn invoke_record_visit(app: &AppHandle, url: &str) {
     }
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

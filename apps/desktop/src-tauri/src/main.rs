@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 // GUI-приложение без консольного окна (пустая консоль рядом с браузером
 // сбивала с толку). Диагностика всё равно пишется в apb/logs/shell-debug.log.
 #![windows_subsystem = "windows"]
@@ -20,13 +20,14 @@
 mod cmd;
 mod liveprivacy;
 mod proxy;
+mod resolver;
 mod shell;
 mod state;
 mod util;
 
 use cmd::downloads::DownloadsLog;
 use cmd::*;
-use shell::{disable_dwm_transitions, relayout, shell_begin_drag, PageTabs};
+use shell::{relayout, shell_begin_drag, PageTabs};
 use state::AppState;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -36,11 +37,10 @@ fn main() {
     // local filtering proxy port goes into the shared browser arguments.
     let filter = Arc::new(liveprivacy::LiveFilter::default());
     let proxy_port = proxy::spawn(filter.clone());
-    liveprivacy::init_browser_args(proxy_port);
 
     tauri::Builder::default()
         .manage(filter)
-        .setup(|app| {
+        .setup(move |app| {
             let data_dir = app
                 .path()
                 .app_data_dir()
@@ -49,6 +49,13 @@ fn main() {
             app.manage(Mutex::new(bootstrapped));
             app.manage(PageTabs::default());
             app.manage(DownloadsLog::default());
+
+            // Browser args are finalized here — after bootstrap, before the
+            // shell window (and any tab webview) exists. DNS is deliberately
+            // NOT put into browser args: behind our HTTP proxy the engine
+            // never resolves hostnames itself, so profile DNS lives in
+            // `resolver` and is applied by sync_from_state below.
+            liveprivacy::init_browser_args(proxy_port);
             liveprivacy::sync_from_state(app.handle())?;
 
             // The shell window is created here (not from tauri.conf.json) so
@@ -64,9 +71,8 @@ fn main() {
                 .additional_browser_args(liveprivacy::browser_args())
                 .build()
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-            if let Some(shell_window) = app.get_window("shell") {
-                disable_dwm_transitions(&shell_window);
-            }
+            // DWM-анимации открытия/сворачивания оставлены включёнными —
+            // гасятся только на время перетаскивания (см. shell.rs).
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -109,6 +115,9 @@ fn main() {
             privacy_stats,
             privacy_reset_stats,
             remove_blocklist,
+            add_blocklist_from_url,
+            site_override_set,
+            site_override_remove,
             vault_status,
             vault_create,
             vault_unlock,
@@ -137,6 +146,7 @@ fn main() {
             debug_log_append,
             page_eval,
             shell_hotkey,
+            shell_open_tab,
             workspaces_get,
             workspaces_set,
             page_extract_text,
@@ -164,4 +174,4 @@ fn main() {
         .expect("error while running APB");
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck

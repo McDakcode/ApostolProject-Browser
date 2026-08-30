@@ -1,4 +1,4 @@
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 /* ============================================================
    APB — design system v3
    Pure black & pure white themes. Flat, calm, no gimmicks.
@@ -104,7 +104,7 @@ html, body {
   margin-left: 2px;
 }
 .win-controls button {
-  width: 34px; height: 28px;
+  width: 34px; height: 30px;
   border: none; border-radius: var(--r-sm);
   background: none; color: var(--text-dim);
   display: grid; place-items: center; cursor: pointer;
@@ -433,6 +433,16 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   background: var(--bg-soft);
   border-bottom: 1px solid var(--border);
 }
+/* Every direct interactive child of the toolbar shares one height,
+   so the row reads as a single straight line instead of a jagged one. */
+.toolbar > .nav-group > .nav-btn,
+.toolbar > .profile-group > select,
+.toolbar > .profile-group > .icon-btn,
+.toolbar > .icon-btn,
+.toolbar .shield-badge {
+  height: 30px;
+  box-sizing: border-box;
+}
 
 .nav-group { display: flex; gap: 2px; flex-shrink: 0; }
 .nav-btn {
@@ -476,6 +486,7 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   display: grid; place-items: center;
   transition: background var(--speed), color var(--speed);
 }
+.address-form button svg.ic { width: 13px; height: 13px; }
 .address-form button:hover { background: var(--accent); color: var(--on-accent); }
 /* Тёмная тема сайта — встроена в адресную строку слева от «перейти» */
 .address-form .addr-btn {
@@ -527,7 +538,7 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   border-right: 1px solid transparent;
   transition: flex-basis var(--speed), width var(--speed), border-color var(--speed);
 }
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 .side-panel.open {
   width: var(--panel-w, 330px); flex: 0 0 var(--panel-w, 330px);
   border-right-color: var(--border-strong);
@@ -537,6 +548,28 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   width: var(--panel-w, 330px); height: 100%;
   overflow-y: auto;
   padding: var(--panel-pad);
+}
+
+/* Vivaldi-style: move the bookmarks/history/notes panel to the right side.
+   Reversing the flex row keeps all existing widths/handles working as-is. */
+body.panel-right .workspace { flex-direction: row-reverse; }
+body.panel-right .side-panel {
+  border-right: none;
+  border-left: 1px solid transparent;
+}
+body.panel-right .side-panel.open {
+  border-right-color: transparent;
+  border-left-color: var(--border-strong);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+}
+body.panel-right .pane-resizer.right { left: -4px; right: auto; }
+
+/* Vivaldi-style: move the tab sidebar to the right edge of the window. */
+body.sidebar-right .app-shell { flex-direction: row-reverse; }
+body.sidebar-right .sidebar {
+  border-right: none;
+  border-left: 1px solid var(--border-strong);
+  box-shadow: -1px 0 6px rgba(0, 0, 0, 0.06);
 }
 
 .panel { display: none; animation: riseIn 0.16s ease both; }
@@ -904,6 +937,7 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   background: var(--bg-soft);
 }
 .isec-link {
+  display: flex; align-items: center; gap: 10px;
   text-align: left;
   padding: 9px 12px;
   border-radius: var(--r-sm);
@@ -912,6 +946,7 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   cursor: pointer; font-size: 12.5px;
   transition: background var(--speed), color var(--speed);
 }
+.isec-link svg.ic { width: 16px; height: 16px; flex-shrink: 0; }
 .isec-link:hover { background: var(--surface-2); color: var(--text); }
 .isec-link.active { background: var(--accent-soft, rgba(128,128,128,0.16)); color: var(--text); }
 
@@ -1056,7 +1091,7 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   border-radius: var(--r-sm);
   padding: 8px 10px; margin: 0 0 1em;
 }
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 .md-preview .md-frontmatter .fm { font-size: 11.5px; font-family: var(--font-mono); color: var(--text-dim); }
 .md-preview .md-frontmatter .fm b { color: var(--text-faint); font-weight: 600; }
 .md-preview sup.fnref { font-size: 0.75em; color: var(--link); cursor: default; }
@@ -1575,7 +1610,7 @@ body.hide-tools .side-tools { display: none; }
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 18px;
 }
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 .pw-gate {
   margin: auto;
   text-align: center;
@@ -2108,15 +2143,23 @@ body.collapsed .sidebar:not(.peek) .tab-list::-webkit-scrollbar { display: none;
   white-space: nowrap;
 }
 
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 /* ================= INTERNAL SETTINGS: search + privacy lists ================= */
-/* Made by MrDuck && Ox-Alpha */
-.isec-nav .isec-search {
+/* Made by MrDuck */
+.isec-nav .isec-search-wrap {
   margin-top: auto;
+  position: relative;
+  width: 100%;
+}
+.isec-nav .isec-search-icon {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 13px; height: 13px; color: var(--text-faint); pointer-events: none;
+}
+.isec-nav .isec-search {
   width: 100%;
   box-sizing: border-box;
   font-size: 12px;
-  padding: 7px 9px;
+  padding: 7px 9px 7px 28px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border);
   background: var(--surface);
@@ -2140,7 +2183,7 @@ body.collapsed .sidebar:not(.peek) .tab-list::-webkit-scrollbar { display: none;
 #blockedSites li .meta { display: flex; align-items: center; gap: 6px; }
 
 /* ===== SETTINGS PAGES: unify bare buttons & stray inputs (2026-08-25) ===== */
-/* Made by MrDuck && Ox-Alpha */
+/* Made by MrDuck */
 .internal-page > button,
 .row > button {
   background: var(--accent); border: none; border-radius: var(--r-sm);
@@ -2164,3 +2207,51 @@ body.collapsed .sidebar:not(.peek) .tab-list::-webkit-scrollbar { display: none;
 
 /* Audit/stats text blocks: keep titles readable inside flex rows */
 #auditList li .title { font-weight: 600; }
+
+/* --------------------------------------------------------------------- */
+/* SHIELD BADGE — индикатор максимального уровня приватности в тулбаре   */
+/* --------------------------------------------------------------------- */
+.shield-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 11px; margin-left: 6px;
+  border-radius: 999px; border: 1px solid transparent;
+  background: transparent; color: var(--text);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+  white-space: nowrap; cursor: pointer; flex: 0 0 auto;
+}
+.shield-badge.max {
+  border-color: rgba(177, 140, 255, .55);
+  background: rgba(177, 140, 255, .16);
+  color: #e6dbff;
+  box-shadow: 0 0 12px rgba(177, 140, 255, .22);
+}
+.shield-badge.emergency {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  animation: shieldPulse 1.6s ease-in-out infinite;
+}
+@keyframes shieldPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 101, 117, .38); }
+  50%      { box-shadow: 0 0 0 7px rgba(255, 101, 117, 0); }
+}
+.shield-badge:hover { transform: translateY(-1px); }
+.shield-badge:active { transform: scale(.94); }
+@media (prefers-reduced-motion: reduce) {
+  .shield-badge.emergency { animation: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Границы окна: тонкая видимая рамка вокруг приложения (окно без
+   декораций иначе сливается с краями экрана) + мини-прослойка между
+   развёрнутым окном и краями экрана. Класс .is-maximized ставит
+   boot-core.js по событию изменения размера окна. */
+html { box-sizing: border-box; border: 1px solid var(--border-strong); }
+html.is-maximized body {
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--bg-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  html.is-maximized body { transition: none; }
+}

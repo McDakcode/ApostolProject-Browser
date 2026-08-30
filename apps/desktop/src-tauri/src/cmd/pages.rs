@@ -1,4 +1,4 @@
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #![allow(unused_imports)]
 
 use crate::shell::PageTab;
@@ -56,6 +56,220 @@ const HOTKEY_RELAY_JS: &str = r#"(function(){
   }, true);
 })();"#;
 
+// Перехват target=_blank / window.open + КАСТОМНОЕ КОНТЕКСТНОЕ МЕНЮ внутри
+// вкладок: ПКМ по ссылке/картинке показывает тёмное меню APB с «Открыть в
+// новой вкладке» (нативное меню WebView2 не умеет открывать вкладки в шелле).
+const NEW_TAB_RELAY_JS: &str = r#"(function(){
+  if (window.__apbNewTabRelay) return; window.__apbNewTabRelay = true;
+  function schemeFallback(u){
+    // Фолбэк без IPC: навигация на спец-схему перехватывается on_navigation
+    // в Rust (false = отмена), URL открывается вкладкой в шелле.
+    try { location.assign("apb-newtab:" + encodeURIComponent(String(u))); } catch(e){}
+  }
+  function openInTab(u){
+    if (!u) return null;
+    try {
+      var t = window.__TAURI__ && window.__TAURI__.core;
+      if (t && t.invoke) {
+        // ВАЖНО: invoke() может реджектнуться (ACL запретил команду для
+        // remote-origin, аргумент не прошёл валидацию и т.п.) — раньше
+        // reject тут никак не обрабатывался и вкладка просто не
+        // открывалась без единой ошибки на экране. Теперь при reject
+        // едем в schemeFallback вместо тишины.
+        var p = t.invoke("shell_open_tab", { url: String(u) });
+        if (p && typeof p.catch === "function") {
+          p.catch(function(err){
+            try { console.error("[apb] shell_open_tab failed:", err); } catch(e2){}
+            schemeFallback(u);
+          });
+        }
+        return null;
+      }
+    } catch(e){}
+    schemeFallback(u);
+    return null;
+  }
+  window.open = function(u, name){
+    try {
+      var s = String(u == null ? "" : u);
+      if (s && s !== "about:blank" && (!name || name === "_blank")) {
+        openInTab(s);
+      }
+    } catch(e){}
+    return null;
+  };
+  document.addEventListener("click", function(e){
+    try {
+      if (e.defaultPrevented || e.button !== 0) return;
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a) return;
+      var tgt = a.getAttribute("target") || "";
+      if (tgt === "_blank" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey)) {
+        e.preventDefault(); e.stopPropagation();
+        openInTab(a.href);
+      }
+    } catch(err){}
+  }, true);
+
+  // ---- Кастомное контекстное меню (ссылки и картинки) ----
+  var ctx = null;
+  function closeCtx(){
+    if (!ctx) return;
+    ctx.remove(); ctx = null;
+    document.removeEventListener("pointerdown", ctxDown, true);
+    window.removeEventListener("keydown", ctxKey, true);
+  }
+  function ctxDown(e){ if (ctx && !ctx.contains(e.target)) closeCtx(); }
+  function ctxKey(e){ if (e.key === "Escape") closeCtx(); }
+  function copyText(s){ try { navigator.clipboard.writeText(s); } catch(e){} }
+  function openCtx(e, items){
+    closeCtx();
+    ctx = document.createElement("div");
+    ctx.style.cssText = "position:fixed;z-index:2147483647;min-width:220px;padding:6px;"
+      + "background:rgba(15,15,21,.94);backdrop-filter:blur(20px) saturate(150%);"
+      + "-webkit-backdrop-filter:blur(20px) saturate(150%);"
+      + "border:1px solid rgba(127,176,255,.25);border-radius:12px;"
+      + "box-shadow:0 12px 40px rgba(0,0,0,.5);font:12.5px system-ui,sans-serif;color:#ececf1;";
+    for (var i = 0; i < items.length; i++) {
+      (function(it){
+        if (it.sep) {
+          var hr = document.createElement("div");
+          hr.style.cssText = "height:1px;background:rgba(255,255,255,.12);margin:4px 8px";
+          ctx.appendChild(hr);
+          return;
+        }
+        var b = document.createElement("button");
+        b.textContent = it.label;
+        b.style.cssText = "display:block;width:100%;text-align:left;padding:8px 12px;"
+          + "background:none;border:none;border-radius:8px;color:inherit;font:inherit;"
+          + "cursor:pointer;white-space:nowrap";
+        b.onmouseenter = function(){ b.style.background = "rgba(255,255,255,.10)"; };
+        b.onmouseleave = function(){ b.style.background = "none"; };
+        b.onclick = function(){ closeCtx(); try { it.fn(); } catch(e){} };
+        ctx.appendChild(b);
+      })(items[i]);
+    }
+    document.documentElement.appendChild(ctx);
+    var mw = ctx.offsetWidth || 220, mh = ctx.offsetHeight || 120;
+    ctx.style.left = Math.max(4, Math.min(e.clientX, window.innerWidth - mw - 8)) + "px";
+    ctx.style.top = Math.max(4, Math.min(e.clientY, window.innerHeight - mh - 8)) + "px";
+    setTimeout(function(){
+      document.addEventListener("pointerdown", ctxDown, true);
+      window.addEventListener("keydown", ctxKey, true);
+    }, 0);
+  }
+  document.addEventListener("contextmenu", function(e){
+    try {
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      var img = e.target && e.target.closest ? e.target.closest("img") : null;
+      var items = [];
+      if (a) {
+        var href = a.href || "";
+        if (href && href.indexOf("javascript:") !== 0) {
+          items.push({ label: "🔗 Открыть в новой вкладке", fn: function(){ openInTab(href); } });
+          items.push({ label: "📋 Копировать адрес ссылки", fn: function(){ copyText(href); } });
+        }
+      }
+      if (img) {
+        var src = img.currentSrc || img.src || "";
+        if (src) {
+          if (items.length) items.push({ sep: true });
+          items.push({ label: "🖼 Открыть изображение в новой вкладке", fn: function(){ openInTab(src); } });
+          items.push({ label: "📋 Копировать адрес изображения", fn: function(){ copyText(src); } });
+        }
+      }
+      if (!items.length) return; // не ссылка/картинка — нативное меню как раньше
+      e.preventDefault(); e.stopPropagation();
+      openCtx(e, items);
+    } catch(err){}
+  }, true);
+})();"#;
+
+// Запоминание позиции видео: главный <video> страницы пишет currentTime в
+// localStorage, при повторном открытии ролик продолжается с места остановки
+// (в т.ч. после рестарта браузера). Короткие видео (<90с, реклама) не
+// трогаем — иначе восстановление ломает рекламные ролики YouTube.
+const VIDEO_RESUME_JS: &str = r#"(function(){
+  if (window.__apbVideoResume) return; window.__apbVideoResume = true;
+  // Ключ считаем В МОМЕНТ записи/чтения: YouTube и прочие SPA меняют URL
+  // без перезагрузки страницы — ключ, вычисленный один раз, цеплял бы
+  // позицию не к тому ролику.
+  function key(){ return "apb-video-pos:" + location.origin + location.pathname; }
+  function mainVideo(){
+    var vs = document.querySelectorAll("video");
+    var best = null, bestA = 0;
+    for (var i = 0; i < vs.length; i++) {
+      var a = (vs[i].videoWidth * vs[i].videoHeight) || (vs[i].clientWidth * vs[i].clientHeight);
+      if (a > bestA) { bestA = a; best = vs[i]; }
+    }
+    return best;
+  }
+  function resumable(v){
+    return v && (!isFinite(v.duration) || v.duration >= 90);
+  }
+  function save(v){
+    try {
+      if (!resumable(v)) return; // реклама/короткие вставки не трогаем
+      var t = v.currentTime || 0;
+      var nearEnd = isFinite(v.duration) && t >= v.duration - 10;
+      if (t > 5 && !nearEnd) localStorage.setItem(key(), String(Math.floor(t)));
+      else if (t <= 5) localStorage.removeItem(key());
+    } catch(e){}
+  }
+  function restore(v){
+    try {
+      if (!resumable(v)) return;
+      var t = parseFloat(localStorage.getItem(key()) || "0") || 0;
+      if (t > 5 && v.currentTime < 5 && (!isFinite(v.duration) || t < v.duration - 10)) {
+        v.currentTime = t;
+      }
+    } catch(e){}
+  }
+  var last = 0;
+  setInterval(function(){
+    var v = mainVideo();
+    if (!v || v.paused) return;
+    var now = Date.now();
+    if (now - last < 4000) return;
+    last = now; save(v);
+  }, 2000);
+  window.addEventListener("pagehide", function(){ var v = mainVideo(); if (v) save(v); });
+  // SPA-навигация (pushState): YouTube подменяет ролик без перезагрузки —
+  // после смены URL пробуем восстановить позицию уже нового видео.
+  function hook(v){
+    if (v.__apbVp) return; v.__apbVp = true;
+    v.addEventListener("loadedmetadata", function(){ v.__apbRestored = false; restore(v); });
+    v.addEventListener("play", function(){ if (!v.__apbRestored) { v.__apbRestored = true; restore(v); } });
+    if (v.readyState >= 1) restore(v);
+    v.addEventListener("pause", function(){ save(v); });
+    v.addEventListener("seeked", function(){ save(v); });
+  }
+  try {
+    var mo = new MutationObserver(function(){ document.querySelectorAll("video").forEach(hook); });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch(e){}
+  try {
+    var ps = history.pushState;
+    history.pushState = function(){ var r = ps.apply(this, arguments); setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; }); }, 60); return r; };
+    window.addEventListener("popstate", function(){ setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; }); }, 60); });
+  } catch(e){}
+  document.querySelectorAll("video").forEach(hook);
+})();"#;
+
+#[tauri::command]
+pub(crate) async fn shell_open_tab(app: AppHandle, url: String) -> Result<(), String> {
+    let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
+    // Глобальную функцию открывает session-ws-downloads-tabs.js (createTab).
+    let js = format!("window.__apbOpenTab && window.__apbOpenTab({:?})", parsed.as_str());
+    let app_for_main = app.clone();
+    on_main_thread(&app, move || {
+        let wv = app_for_main
+            .get_webview("shell")
+            .ok_or_else(|| "нет окна оболочки".to_string())?;
+        wv.eval(&js).map_err(|e| e.to_string())
+    })?
+}
+
 #[tauri::command]
 pub(crate) async fn shell_hotkey(app: AppHandle, key: String) -> Result<(), String> {
     let ch = key
@@ -86,7 +300,7 @@ pub(crate) async fn shell_hotkey(app: AppHandle, key: String) -> Result<(), Stri
 // The frontend orchestrates switching; the backend only stores the doc.
 // ---------------------------------------------------------------------
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 
 pub(crate) fn page_extract_text(url: String) -> Result<serde_json::Value, String> {
@@ -150,7 +364,6 @@ pub(crate) fn page_extract_text(url: String) -> Result<serde_json::Value, String
 }
 
 #[tauri::command]
-
 pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, String> {
     let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
     let id = uuid::Uuid::new_v4().to_string();
@@ -191,12 +404,102 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         })
     };
 
+    // Cookie/storage isolation + Referer-policy shim for this tab's snapshot
+    // of the policy. Covers HTTPS traffic where the proxy cannot look inside
+    // the tunnel: in cross-origin frames document.cookie is frozen (and
+    // storage writes are no-ops under strict isolation), plus a
+    // <meta name="referrer"> is planted for the referrer policy. Applies to
+    // webviews created after the last policy change (same as fingerprint).
+    let privacy_js: Option<String> = {
+        let state = app.state::<crate::state::SharedState>();
+        let guard = state.lock().unwrap();
+        guard.active_or_err().ok().and_then(|a| {
+            let pol = a.privacy.effective_policy();
+            let cookie_shim =
+                pol.block_third_party_cookies || pol.strict_storage_isolation;
+            if !cookie_shim && pol.referrer == apb_privacy::ReferrerPolicy::Default {
+                None
+            } else {
+                Some(privacy_shim_js(
+                    pol.block_third_party_cookies,
+                    pol.strict_storage_isolation,
+                    pol.referrer,
+                ))
+            }
+        })
+    };
+
+    // Cosmetic ad filtering: when the profile blocks ads, plant the generic
+    // element-hiding stylesheet at document-start so blocked networks leave
+    // no empty boxes. Pure CSS matching — no observer loops.
+    let cosmetic_js: Option<String> = {
+        let state = app.state::<crate::state::SharedState>();
+        let guard = state.lock().unwrap();
+        guard
+            .active_or_err()
+            .ok()
+            .filter(|a| a.privacy.effective_policy().block_ads)
+            .map(|_| apb_privacy::blocklists::cosmetic_filter_script())
+    };
+
+    // In-page request blocker (extension-grade layer): sendBeacon/fetch/XHR
+    // to known ad/tracker endpoints abort in-page — the proxy can't see
+    // these inside HTTPS tunnels. Static curated pattern set.
+    let req_js: Option<String> = {
+        let state = app.state::<crate::state::SharedState>();
+        let guard = state.lock().unwrap();
+        guard
+            .active_or_err()
+            .ok()
+            .filter(|a| {
+                let p = a.privacy.effective_policy();
+                p.block_ads || p.block_trackers
+            })
+            .map(|_| {
+                apb_privacy::blocklists::request_blocker_script(request_block_patterns())
+            })
+    };
+
     on_main_thread(&app, move || -> Result<(), String> {
         let window = app_for_main.get_window("shell").ok_or_else(|| "нет окна оболочки".to_string())?;
         let (x, y, width, height) =
             measured.unwrap_or_else(|| content_rect(&window, false));
+        // Сайт сам сменил страницу (клик по ссылке, редирект) — сообщаем
+        // шеллу, чтобы омнибокс/история вкладки не оставались на старом URL.
+        let nav_app = app_for_main.clone();
+        let nav_label = label_for_main.clone();
+        // Нативное меню WebView2 «Открыть ссылку в новом окне» и не пойманные
+        // шимом window.open: ОС-окно НЕ создаём — просим шелл открыть вкладку.
+        let nw_app = app_for_main.clone();
         let mut builder = WebviewBuilder::new(&label_for_main, WebviewUrl::External(parsed))
+            .on_navigation(move |url| {
+                // Фолбэк-канал «открыть вкладкой» без IPC (если remote-invoke
+                // запрещён): шим в странице ведёт на apb-newtab:<url>,
+                // навигация отменяется, URL уезжает в шелл новой вкладкой.
+                if url.scheme() == "apb-newtab" {
+                    let raw = url.as_str().trim_start_matches("apb-newtab:");
+                    // crate::util::percent_decode вместо несуществующего
+                    // percent_decode_str (внешний крейт percent-encoding не
+                    // подключён и нигде не импортирован — билд падал с
+                    // E0425). При неудачном декодировании открываем как есть
+                    // — лучше сырой URL, чем сломанная вкладка.
+                    let target = crate::util::percent_decode(raw).unwrap_or_else(|| raw.to_string());
+                    let payload = serde_json::json!({ "url": target });
+                    let _ = tauri::Emitter::emit(&nav_app, "page-open-tab", payload);
+                    return false;
+                }
+                let payload = serde_json::json!({ "id": nav_label, "url": url.to_string() });
+                let _ = tauri::Emitter::emit(&nav_app, "page-url-changed", payload);
+                true
+            })
+            .on_new_window(move |url, _features| {
+                let payload = serde_json::json!({ "url": url.to_string() });
+                let _ = tauri::Emitter::emit(&nw_app, "page-open-tab", payload);
+                tauri::webview::NewWindowResponse::Deny
+            })
             .initialization_script(HOTKEY_RELAY_JS)
+            .initialization_script(NEW_TAB_RELAY_JS)
+            .initialization_script(VIDEO_RESUME_JS)
             // MUST match the shell window's args exactly (same user-data
             // folder = same WebView2 environment options requirement).
             .additional_browser_args(crate::liveprivacy::browser_args())
@@ -267,6 +570,15 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         if let Some(js) = fingerprint_js {
             builder = builder.initialization_script(js);
         }
+        if let Some(js) = privacy_js {
+            builder = builder.initialization_script(js);
+        }
+        if let Some(js) = cosmetic_js {
+            builder = builder.initialization_script(js);
+        }
+        if let Some(js) = req_js {
+            builder = builder.initialization_script(js);
+        }
         window
             .add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;
@@ -283,7 +595,7 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
     Ok(id)
 }
 
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 pub(crate) async fn page_navigate(app: AppHandle, id: String, url: String) -> Result<(), String> {
     let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
@@ -357,7 +669,7 @@ pub(crate) async fn page_split_set(
 }
 
 /// Выключить разделённый экран.
-// Made by MrDuck && Ox-Alpha
+// Made by MrDuck
 #[tauri::command]
 pub(crate) async fn page_split_off(app: AppHandle) -> Result<(), String> {
     let tabs = app.state::<PageTabs>();
@@ -472,4 +784,72 @@ pub(crate) fn open_in_system(url: String) -> Result<(), String> {
     Ok(())
 }
 
-// Made by MrDuck && Ox-Alpha
+/// Curated in-page request-blocker patterns, computed once per process.
+fn request_block_patterns() -> &'static Vec<String> {
+    static P: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    P.get_or_init(apb_privacy::blocklists::builtin_request_patterns)
+}
+
+/// Build the cookie/storage/referrer enforcement script. Injected into every
+/// frame of a tab webview (initialization scripts survive navigations).
+fn privacy_shim_js(
+    block_tp_cookies: bool,
+    strict_storage: bool,
+    referrer: apb_privacy::ReferrerPolicy,
+) -> String {
+    use apb_privacy::ReferrerPolicy as RP;
+    let meta: String = match referrer {
+        RP::Default => "",
+        RP::StrictOriginWhenCrossOrigin => "strict-origin-when-cross-origin",
+        RP::SameOriginOnly => "same-origin",
+        RP::NeverCrossOrigin => "no-referrer",
+    }
+    .to_string();
+    let tp = if block_tp_cookies { "true" } else { "false" };
+    let ss = if strict_storage { "true" } else { "false" };
+    format!(
+        r#"(() => {{
+  const REF = "{meta}";
+  try {{
+    if (REF && !document.querySelector('meta[name="referrer"]')) {{
+      const m = document.createElement("meta");
+      m.setAttribute("name", "referrer");
+      m.setAttribute("content", REF);
+      (document.head || document.documentElement).appendChild(m);
+    }}
+  }} catch (e) {{}}
+  const TP = {tp}, SS = {ss};
+  if (!TP && !SS) return;
+  let inFrame = false;
+  try {{ inFrame = window.top !== window.self; }} catch (e) {{ inFrame = false; }}
+  if (!inFrame) return;
+  let cross = false;
+  try {{
+    const t = window.top.location;
+    cross = t.host !== window.location.host || t.protocol !== window.location.protocol;
+  }} catch (e) {{ cross = true; }}
+  if (!cross) return;
+  if (TP) {{
+    try {{
+      Object.defineProperty(document, "cookie", {{
+        configurable: false,
+        get: () => "",
+        set: () => {{}},
+      }});
+    }} catch (e) {{}}
+  }}
+  if (SS) {{
+    for (const name of ["localStorage", "sessionStorage"]) {{
+      try {{
+        const s = window[name];
+        for (const k of ["setItem", "removeItem", "clear"]) {{
+          try {{ s[k] = () => {{ throw new Error("apb-isolated"); }}; }} catch (e) {{}}
+        }}
+      }} catch (e) {{}}
+    }}
+  }}
+}})();"#
+    )
+}
+
+// Made by MrDuck
