@@ -17,8 +17,12 @@ function resolveAddressInput(raw) {
 document.getElementById("addressForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = document.getElementById("addressInput");
-  const raw = input.value.trim();
+  let raw = input.value.trim();
   if (!raw) return;
+  // Режим названия сайта: в поле написано имя, а не адрес. Enter — просто
+  // перейти (перезагрузить) текущую страницу, а не искать это имя.
+  const t = (typeof currentTabObj === "function") ? currentTabObj() : null;
+  if (t && !t.isNew && t.url && raw === (t.label || "")) raw = t.url;
   const url = resolveAddressInput(raw);
   navigateActiveTab(url, smartLabel(raw, url));
 });
@@ -61,12 +65,15 @@ document.getElementById("bmAddBtn").addEventListener("click", async () => {
 // History
 // ---------------------------------------------------------------------
 
-// Заголовок записи истории: если бэкенд записал голый хостнейм (поисковик),
-// вытаскиваем поисковый запрос из URL — иначе список кишит «duckduckgo.com»
+// Заголовок записи истории: сначала реальный <title> из кэша вкладок (как во
+// вкладках и адресной строке — «название видео» вместо домена); иначе если
+// бэкенд записал голый хостнейм (поисковик), вытаскиваем поисковый запрос.
 function histDisplayTitle(title, url) {
+  const cached = (typeof titleCacheFor === "function") ? titleCacheFor(url) : "";
+  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
+  if (cached && cached !== host && cached !== url) return cached;
   const t = (title || "").trim();
   try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
     if (!t || t === host || t === url) {
       const q = typeof labelFromUrl === "function" ? labelFromUrl(url) : null;
       if (q) return "🔍 " + q;

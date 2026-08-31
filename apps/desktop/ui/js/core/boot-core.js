@@ -83,8 +83,9 @@ try {
 } catch { /* API недоступен */ }
 setTimeout(syncMaximizedFrame, 60); // первичная синхронизация после загрузки
 
-// Smooth manual window dragging: the OS modal move loop stutters WebView2
-// content, so we reposition via a dedicated backend loop instead.
+// Window dragging is now the NATIVE system SC_MOVE loop (@tauri-apps/api
+// window label startDragging): Windows renders its own snap previews and
+// outline animations, exactly like every other app.
 // Regions: [data-apb-drag] (titlebar areas). Interactive kids are excluded.
 document.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
@@ -92,13 +93,44 @@ document.addEventListener("pointerdown", (e) => {
   if (!region) return;
   if (e.target.closest("button,input,select,textarea,a,.win-controls,.nav-group")) return;
   e.preventDefault();
-  invoke("shell_begin_drag").catch(() => {});
+  const w = tauriWin();
+  if (w) w.startDragging().catch(() => {});
 }, true);
 document.addEventListener("dblclick", (e) => {
   const region = e.target.closest?.("[data-apb-drag]");
   if (!region || e.target.closest("button,input,select,textarea,a,.win-controls")) return;
   document.getElementById("winMax")?.click();
 });
+
+// Window resizing. tao's frameless hit-test handles only the top edge (its
+// shadow marker kicks in), so pulling sides/bottom doesn't resize — instead
+// we overlay invisible grab strips at the window edges and drive
+// startResizeDragging() (@tauri-apps/api window plugin) directly.
+(() => {
+  // localStorage-ключи-полоски → имена сторон для startResizeDragging
+  const DIR = {
+    top: "North", bottom: "South", left: "West", right: "East",
+    "top-left": "NorthWest", "top-right": "NorthEast",
+    "bottom-left": "SouthWest", "bottom-right": "SouthEast",
+  };
+  const host = document.createElement("div");
+  host.id = "winResize";
+  host.innerHTML =
+    Object.keys(DIR)
+      .map((k) => '<div class="rs" data-dir="' + k + '"></div>')
+      .join("");
+  document.body.appendChild(host);
+  host.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const h = e.target.closest?.("[data-dir]");
+    if (!h) return;
+    // Развёрнутое окно тянем за тайтлбар, а не за границы.
+    if (document.documentElement.classList.contains("is-maximized")) return;
+    e.preventDefault();
+    const w = tauriWin();
+    if (w) w.startResizeDragging(DIR[h.dataset.dir]).catch(() => {});
+  }, true);
+})();
 
 // Visible error reporting (helps catch silent breakages) + toasts
 window.addEventListener("error", (ev) => {

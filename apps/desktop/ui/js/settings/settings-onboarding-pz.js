@@ -65,7 +65,7 @@ function showOnboarding() {
 // width, glass, motion — persisted in localStorage ("apb-ui").
 // ---------------------------------------------------------------------
 
-const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", sound: true };
+const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", sound: true, settingsCols: false, settingsW: 640 };
 
 // Curated font stacks for the UI font setting
 const AP_FONTS = {
@@ -109,6 +109,9 @@ function pzApply() {
   document.body.classList.toggle("hide-tools", !!p.hideTools);
   document.body.classList.toggle("no-ws-count", !p.wsCount);
   document.body.classList.toggle("side-hover", !!p.sideHover);
+  // Settings layout (optional 2 columns + adjustable width)
+  document.body.classList.toggle("settings-2col", !!p.settingsCols);
+  rs.setProperty("--settings-w", (p.settingsW || 640) + "px");
   // Glass transparency
   if (p.glassA) rs.setProperty("--glass-a", String(p.glassA / 100));
   else rs.removeProperty("--glass-a");
@@ -166,6 +169,8 @@ function pzSyncControls() {
   ap("apBgDim", (el) => { el.value = p.bgDim == null ? 35 : p.bgDim; });
   ap("apWsCount", (el) => { el.checked = p.wsCount !== false; });
   ap("apSideHover", (el) => { el.checked = !!p.sideHover; });
+  ap("apSettingsCols", (el) => { el.checked = !!p.settingsCols; });
+  ap("apSettingsW", (el) => { el.value = p.settingsW || 640; });
 }
 
 document.getElementById("pzAccent").addEventListener("input", (e) => pzUpdate({ accent: e.target.value }));
@@ -203,6 +208,8 @@ apOn("apGlassA", "input", (e) => pzUpdate({ glassA: +e.target.value }));
 apOn("apSound", "change", (e) => pzUpdate({ sound: e.target.checked }));
 apOn("apWsCount", "change", (e) => pzUpdate({ wsCount: e.target.checked }));
 apOn("apBgDim", "input", (e) => pzUpdate({ bgDim: +e.target.value }));
+apOn("apSettingsCols", "change", (e) => pzUpdate({ settingsCols: e.target.checked }));
+apOn("apSettingsW", "input", (e) => pzUpdate({ settingsW: +e.target.value }));
 
 // --- Downloads folder setting ---
 // Made by MrDuck

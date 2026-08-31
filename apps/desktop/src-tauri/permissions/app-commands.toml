@@ -85,6 +85,8 @@ commands.allow = [
     "ext_set_enabled",
     "ext_sandbox_policy",
     "page_open",
+    "page_url_push",
+    "page_diag",
     "page_navigate",
     "page_activate",
     "page_hide_all",

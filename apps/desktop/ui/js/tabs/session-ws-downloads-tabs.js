@@ -218,17 +218,12 @@ function scheduleSessionSave() {
   clearTimeout(sessionTimer);
   sessionTimer = setTimeout(persistSessionNow, 700);
 }
-async function persistSessionNow() {
-  const st = savableTabs();
-  try {
-    await invoke("session_save", {
-      session: {
-        tabs: st.map((t) => ({ url: t.url, label: t.label })),
-        active: Math.max(0, st.findIndex((t) => t.id === activeTabId)),
-      },
-    });
-  } catch { /* non-critical */ }
-}
+
+// Перед закрытием окна дампнем сессию немедленно (без 700мс-задержки), чтобы
+// перезапуск поднял ровно тот же набор вкладок и URL — включая SPA-переходы,
+// чей URL пришёл через page-url-changed прямо перед закрытием.
+window.addEventListener("beforeunload", () => { void persistSessionNow(); });
+window.addEventListener("pagehide", () => { void persistSessionNow(); });
 
 // ---------------------------------------------------------------------
 // Tabs — in-window, rendered as <iframe> panes. No native windows, so
@@ -249,6 +244,149 @@ function activeTab() {
 
 function makeTabId() {
   return "tab-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+// ---------------------------------------------------------------------
+// Favicon кэш + адресная строка «название сайта / полный URL»
+// ---------------------------------------------------------------------
+
+// Иконки тянутся ТОЛЬКО с самого сайта (/favicon.ico) — без сторонних
+// сервисов (приватность). Результат запоминается в localStorage: удачное —
+// показываем сразу (в т.ч. у спящих вкладок и после перезапуска), неудачное
+// («иконки нет») — чтобы не дёргать URL повторно каждым рендером.
+const FAV_CACHE_KEY = "apb-favicons";
+function favCacheLoad() {
+  try {
+    const c = JSON.parse(localStorage.getItem(FAV_CACHE_KEY));
+    return c && typeof c === "object" ? c : {};
+  } catch { return {}; }
+}
+function favCacheSave(c) { try { localStorage.setItem(FAV_CACHE_KEY, JSON.stringify(c)); } catch {} }
+function favOriginOf(url) {
+  if (!url) return null;
+  try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u.origin : null; } catch { return null; }
+}
+function favCached(origin) {
+  const c = favCacheLoad();
+  return origin in c ? c[origin] : null; // "" = известно, что иконки нет
+}
+function favRemember(origin, src) {
+  const c = favCacheLoad();
+  c[origin] = src;
+  favCacheSave(c);
+}
+/** Готовит <img> с фавиконом сайта. true = картинка показывается,
+ *  false = остаётся буква-фолбэк (иконки нет / спящая вкладка без кэша). */
+function favAttach(img, url, opts = {}) {
+  const origin = favOriginOf(url);
+  if (!origin) return false;
+  const cached = favCached(origin);
+  if (cached === "") return false;                       // иконки точно нет
+  if (opts.noNet && cached == null) return false;        // спящая — сеть не дёргаем
+  const src = cached != null ? cached : origin + "/favicon.ico";
+  img.onload = () => favRemember(origin, src);
+  img.onerror = () => { favRemember(origin, ""); img.remove(); };
+  img.src = src;
+  return true;
+}
+window.__favAttach = favAttach;
+window.__favOriginOf = favOriginOf;
+window.__favCached = favCached;
+window.__favRemember = favRemember;
+
+// Кэш реальных заголовков страниц (<title>): подстановка сразу, даже у
+// спящих вкладок (восстановленных сессий) — «название видео» вместо домена.
+const TITLE_CACHE_KEY = "apb-titles";
+function titleCacheLoad() {
+  try {
+    const c = JSON.parse(localStorage.getItem(TITLE_CACHE_KEY));
+    return c && typeof c === "object" ? c : {};
+  } catch { return {}; }
+}
+function titleCacheSave(c) { try { localStorage.setItem(TITLE_CACHE_KEY, JSON.stringify(c)); } catch {} }
+function titleCacheFor(url) {
+  if (!url) return "";
+  try {
+    const c = titleCacheLoad();
+    return c[url] || "";
+  } catch { return ""; }
+}
+function titleCacheRemember(url, title) {
+  if (!url || !title) return;
+  try {
+    const c = titleCacheLoad();
+    if (c[url] === title) return;
+    c[url] = title;
+    const keys = Object.keys(c);
+    if (keys.length > 800) {
+      for (let i = 0; i < keys.length - 800; i++) delete c[keys[i]];
+    }
+    titleCacheSave(c);
+  } catch {}
+}
+window.__titleCacheFor = titleCacheFor;
+
+/** Лучшая известная подпись для URL: реальный <title> из кэша → переданный
+ *  label → поисковый запрос из URL → домен. */
+function smartTitle(url, label) {
+  const c = titleCacheFor(url);
+  if (c) return c;
+  return label || labelFromUrl(url) || hostnameOf(url);
+}
+window.__smartTitle = smartTitle;
+
+// Адресная строка: показываем НАЗВАНИЕ сайта + иконку слева; клик (фокус)
+// раскрывает полный URL для редактирования; потеря фокуса без правок снова
+// возвращает название.
+const addrInput = document.getElementById("addressInput");
+const addrFavEl = document.getElementById("addrFav");
+let _addrUrl = "", _addrTitle = "";
+
+function setAddrFav(url) {
+  const form = document.getElementById("addressForm");
+  if (!addrFavEl || !form) return;
+  const origin = favOriginOf(url);
+  if (!origin) {
+    addrFavEl.classList.add("hidden");
+    form.classList.remove("has-fav");
+    return;
+  }
+  const cached = favCached(origin);
+  if (cached === "") {
+    addrFavEl.classList.add("hidden");
+    form.classList.remove("has-fav");
+    return;
+  }
+  const src = cached != null ? cached : origin + "/favicon.ico";
+  addrFavEl.onload = () => favRemember(origin, src);
+  addrFavEl.onerror = () => {
+    favRemember(origin, "");
+    addrFavEl.classList.add("hidden");
+    form.classList.remove("has-fav");
+  };
+  addrFavEl.src = src;
+  addrFavEl.classList.remove("hidden");
+  form.classList.add("has-fav");
+}
+
+function updateAddressBar(url, title) {
+  _addrUrl = url || "";
+  _addrTitle = (title && title !== url ? title : "") || "";
+  if (!addrInput) return;
+  setAddrFav(_addrUrl);
+  const focused = document.activeElement === addrInput;
+  addrInput.value = (!focused && _addrTitle) ? _addrTitle : _addrUrl;
+}
+window.updateAddressBar = updateAddressBar;
+
+if (addrInput) {
+  addrInput.addEventListener("focus", () => {
+    if (_addrUrl && addrInput.value === _addrTitle) addrInput.value = _addrUrl;
+    requestAnimationFrame(() => addrInput.select());
+  });
+  addrInput.addEventListener("blur", () => {
+    if (_addrTitle && addrInput.value === _addrUrl) addrInput.value = _addrTitle;
+  });
 }
 
 // Отслеживаем прошлый состав вкладок: анимацию появления вешаем ТОЛЬКО на
@@ -277,19 +415,14 @@ function renderTabStrip() {
     }
     // Настоящий фавикон сайта: тянем /favicon.ico САМОГО сайта (без сторонних
     // сервисов типа Google s2 — приватность). Буква остаётся под картинкой
-    // как фолбэк, если иконки нет. Спящие вкладки не дёргаем сетью.
-    if (!tab.asleep && !tab.url.startsWith("apb://")) {
-      let origin = null;
-      try { const u = new URL(tab.url); if (/^https?:$/.test(u.protocol)) origin = u.origin; } catch {}
-      if (origin) {
-        const img = document.createElement("img");
-        img.className = "fav-img";
-        img.loading = "lazy";
-        img.alt = "";
-        img.onerror = () => img.remove();
-        img.src = origin + "/favicon.ico";
-        fav.appendChild(img);
-      }
+    // как фолбэк, если иконки нет. Иконка запрашивается и для СПЯЩИХ вкладок
+    // (юзер хочет логотип всегда), повторные 404 не дёргаются (кэш).
+    if (!tab.url.startsWith("apb://")) {
+      const img = document.createElement("img");
+      img.className = "fav-img";
+      img.loading = "lazy";
+      img.alt = "";
+      if (favAttach(img, tab.url)) fav.appendChild(img);
     }
     const title = document.createElement("span");
     title.className = "tab-pill-title";
@@ -336,6 +469,7 @@ async function renameTab(tab) {
   if (nn == null) return;
   const v = nn.trim();
   if (!v) return;
+  tab.userRenamed = true; // не перетирать ручное имя реальным <title>
   tab.label = v;
   renderTabStrip();
   scheduleSessionSave();
@@ -469,7 +603,7 @@ async function apbSplitWith(otherId) {
     splitPair = { left: a.id, right: b.id };
     window.__apbSplitPair = splitPair;
     activeTabId = a.id;
-    document.getElementById("addressInput").value = a.url;
+    updateAddressBar(a.url, a.label);
     showEmptyState(false);
     renderTabStrip();
     syncPageLayout(true);
@@ -500,18 +634,34 @@ try {
   // вкладку, историю и омнибокс, иначе адресная строка показывает старое.
   ev.listen("page-url-changed", (e) => {
     const { id, url } = e.payload || {};
+    if (window.__apbLog) window.__apbLog("INFO", `url-changed ${id} ${url}`);
     const t = tabs.find((x) => x.id === id);
     if (!t || !url || t.url === url) return;
     t.url = url;
-    t.label = labelFromUrl(url) || hostnameOf(url);
+    if (!t.userRenamed) t.label = smartTitle(url, "");
     if (t.hist[t.hi] !== url) {
       t.hist = t.hist.slice(0, t.hi + 1);
       t.hist.push(url);
       t.hi = t.hist.length - 1;
     }
-    if (id === activeTabId) document.getElementById("addressInput").value = url;
+    if (id === activeTabId) updateAddressBar(url, t.label);
     renderTabStrip();
     updateNavBtns();
+    scheduleSessionSave();
+  });
+  // Реальный заголовок страницы (<title>) с бэкенда — настоящее название
+  // сайта в адресной строке и в кладке (если юзер не переименовал вручную).
+  ev.listen("page-title-changed", (e) => {
+    const { id, title } = e.payload || {};
+    if (window.__apbLog) window.__apbLog("INFO", `title-changed ${id} ${title}`);
+    const t = tabs.find((x) => x.id === id);
+    if (!t || !title) return;
+    const v = String(title).trim().slice(0, 200);
+    if (!v || t.userRenamed) return;
+    t.label = v;
+    titleCacheRemember(t.url, v);
+    if (id === activeTabId) updateAddressBar(t.url, t.label);
+    renderTabStrip();
     scheduleSessionSave();
   });
   // Нативное меню «Открыть в новом окне» (ПКМ на YouTube и т.п.) — бэкенд
@@ -559,7 +709,7 @@ async function createTab(url, label, opts = {}) {
   splitExitSilent();
   try {
     const id = await invokeV2("page_open", { url });
-    const t = { id, url, label: label || labelFromUrl(url) || hostnameOf(url), hist: [url], hi: 0 };
+    const t = { id, url, label: smartTitle(url, label), hist: [url], hi: 0 };
     // Новые вкладки по умолчанию встают В НАЧАЛО списка (сверху).
     // opts.append — для восстановления сессий/воркспейсов, чтобы сохранить
     // исходный порядок.
@@ -567,7 +717,7 @@ async function createTab(url, label, opts = {}) {
     activeTabId = id;
     internalOpen = null;
     internalHost.classList.add("hidden");
-    document.getElementById("addressInput").value = url;
+    updateAddressBar(url, t.label);
     showEmptyState(false);
     renderTabStrip();
     syncPageLayout(true);
@@ -613,14 +763,14 @@ function navigateActiveTab(url, label, opts = {}) {
   if (cur.isNew) { wakeAs(cur, url, label); return; }
   const tab = cur;
   tab.url = url;
-  tab.label = label || labelFromUrl(url) || hostnameOf(url);
+  tab.label = smartTitle(url, label);
   // Record navigation history for the back/forward buttons.
   if (tab.hist[tab.hi] !== url) {
     tab.hist = tab.hist.slice(0, tab.hi + 1);
     tab.hist.push(url);
   }
   tab.hi = tab.hist.length - 1;
-  document.getElementById("addressInput").value = url;
+  updateAddressBar(url, tab.label);
   invokeV2("page_navigate", { id: tab.id, url }).catch(() => {});
   renderTabStrip();
   scheduleSessionSave();
@@ -650,10 +800,10 @@ function jumpHistory(dir) {
   const ni = t.hi + dir;
   if (ni < 0 || ni >= t.hist.length) return;
   t.hi = ni;
-  const url = t.hist[ni];
-  t.url = url;
-  t.label = hostnameOf(url);
-  document.getElementById("addressInput").value = url;
+const url = t.hist[ni];
+    t.url = url;
+    t.label = smartTitle(url, "");
+  updateAddressBar(url, t.label);
   invokeV2("page_navigate", { id: t.id, url }).catch(() => {});
   renderTabStrip();
 }
@@ -673,7 +823,7 @@ document.getElementById("navReload").addEventListener("click", () => {
 function addSleepingTab(url, label) {
   tabs.unshift({
     id: makeTabId(), url,
-    label: label || labelFromUrl(url) || hostnameOf(url),
+    label: smartTitle(url, label),
     hist: [url], hi: 0, asleep: true,
   });
 }
@@ -691,7 +841,7 @@ async function wakeTab(tab) {
     activeTabId = realId;
     internalOpen = null;
     internalHost.classList.add("hidden");
-    document.getElementById("addressInput").value = tab.url;
+    updateAddressBar(tab.url, tab.label);
     showEmptyState(false);
     renderTabStrip();
     syncPageLayout(true);
@@ -712,6 +862,7 @@ function openNewTabPage() {
   internalHost.classList.add("hidden");
   // КРИТИЧНО: нативные вебвью рисуются ПОВЕРХ HTML — прячем их все
   invokeV2("page_hide_all", {}).catch(() => {});
+  updateAddressBar("", "");
   showHome();
   renderTabStrip();
   syncPageLayout();
@@ -729,12 +880,12 @@ async function wakeAs(tab, url, label) {
     _prevTabIds.delete(tab.id);
     tab.id = realId;
     tab.url = url;
-    tab.label = label || labelFromUrl(url) || hostnameOf(url);
+    tab.label = smartTitle(url, label);
     tab.hist = [url];
     tab.hi = 0;
     tab.isNew = false;
     activeTabId = realId;
-    document.getElementById("addressInput").value = url;
+    updateAddressBar(url, tab.label);
     showEmptyState(false);
     renderTabStrip();
     syncPageLayout(true);
@@ -752,7 +903,7 @@ async function switchTab(id) {
   // Клик по члену сплита — просто переключаем фокус, сплит живёт
   if (splitPair && (id === splitPair.left || id === splitPair.right)) {
     activeTabId = id;
-    document.getElementById("addressInput").value = tab.url;
+    updateAddressBar(tab.url, tab.label);
     renderTabStrip();
     updateNavBtns();
     return;
@@ -764,7 +915,7 @@ async function switchTab(id) {
     // Новая вкладка-страница: пилюля есть, вебвью нет — показываем главную
     activeTabId = tab.id;
     invokeV2("page_hide_all", {}).catch(() => {});
-    document.getElementById("addressInput").value = "";
+    updateAddressBar("", "");
     showHome();
     renderTabStrip();
     scheduleSessionSave();
@@ -772,7 +923,7 @@ async function switchTab(id) {
     return;
   }
   activeTabId = id;
-  document.getElementById("addressInput").value = tab.url;
+  updateAddressBar(tab.url, tab.label);
   showEmptyState(false);
   invokeV2("page_activate", { id }).catch(() => {});
   renderTabStrip();
@@ -799,7 +950,7 @@ function closeTab(id) {
       // список теперь «новые сверху» — активируем верхнюю оставшуюся
       switchTab(tabs[0].id);
     } else {
-      document.getElementById("addressInput").value = "";
+      updateAddressBar("", "");
       showHome();
       syncPageLayout();
     }

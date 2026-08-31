@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 use crate::shell::PageTab;
+use crate::cmd::debug::append_backend_log;
 use tauri::{WebviewBuilder, WebviewUrl};
 use crate::state::{AppState, SharedState};
 use tauri::{AppHandle, Manager, State};
@@ -38,8 +39,10 @@ const HOTKEY_RELAY_JS: &str = r#"(function(){
   if (window.__apbHotkeyRelay) return; window.__apbHotkeyRelay = true;
   function send(k){
     try {
-      var t = window.__TAURI__ && window.__TAURI__.core;
-      if (t && t.invoke) t.invoke("shell_hotkey", { key: k });
+      // Дочерние вебвью не имеют window.__TAURI__ (есть только
+      // __TAURI_INTERNALS__) — invoke зовём через неё.
+      var i = window.__TAURI_INTERNALS__;
+      if (i && i.invoke) i.invoke("shell_hotkey", { key: k });
     } catch(e){}
   }
   window.addEventListener("keydown", function(e){
@@ -69,14 +72,14 @@ const NEW_TAB_RELAY_JS: &str = r#"(function(){
   function openInTab(u){
     if (!u) return null;
     try {
-      var t = window.__TAURI__ && window.__TAURI__.core;
-      if (t && t.invoke) {
+      var i = window.__TAURI_INTERNALS__;
+      if (i && i.invoke) {
         // ВАЖНО: invoke() может реджектнуться (ACL запретил команду для
         // remote-origin, аргумент не прошёл валидацию и т.п.) — раньше
         // reject тут никак не обрабатывался и вкладка просто не
         // открывалась без единой ошибки на экране. Теперь при reject
         // едем в schemeFallback вместо тишины.
-        var p = t.invoke("shell_open_tab", { url: String(u) });
+        var p = i.invoke("shell_open_tab", { url: String(u) });
         if (p && typeof p.catch === "function") {
           p.catch(function(err){
             try { console.error("[apb] shell_open_tab failed:", err); } catch(e2){}
@@ -193,8 +196,33 @@ const VIDEO_RESUME_JS: &str = r#"(function(){
   if (window.__apbVideoResume) return; window.__apbVideoResume = true;
   // Ключ считаем В МОМЕНТ записи/чтения: YouTube и прочие SPA меняют URL
   // без перезагрузки страницы — ключ, вычисленный один раз, цеплял бы
-  // позицию не к тому ролику.
-  function key(){ return "apb-video-pos:" + location.origin + location.pathname; }
+  // позицию не к тому ролику. ПРОБЛЕМА, найденная у юзера: обычный
+  // origin+pathname для всех роликов одинаков ("/watch"), а полный
+  // search — НЕСТАБИЛЕН: YouTube сам добавляет/переставляет параметры
+  // (pp, embeds, cbrd...), поэтому ключ «на сохранении» расходился с
+  // ключом «при загрузке» ровно для того же ролика → время не находилось.
+  // ФИКС: ключ строится строго по ИДЕНТИЧНОСТИ ролика — для /watch берём
+  // ТОЛЬКО ?v=<id>, всё остальное выкидываем; shorts/live/embed уже
+  // уникальны самим pathname (в нём id). Спам-параметры не влияют на ключ.
+  function key(){
+    try {
+      var u = new URL(location.href);
+      if (u.pathname === "/watch") {
+        var v7 = u.searchParams.get("v");
+        if (v7) return "apb-video-pos:" + u.origin + "/watch?v=" + v7;
+      }
+      u.searchParams.delete("t");
+      return "apb-video-pos:" + u.origin + u.pathname + (u.search ? u.search : "");
+    } catch(e){
+      return "apb-video-pos:" + location.origin + location.pathname;
+    }
+  }
+  // Диагностика в журнал бэкенда (метка [page]). Толстые строки не шлём —
+  // только факты и цифры, чтобы по apb\logs\shell-debug.log понять, что
+  // видит страница (p-push: записал/пропустил, p-restore: есть/нет/применил).
+  function diag(m){
+    try { var i = window.__TAURI_INTERNALS__; if (i && i.invoke) i.invoke("page_diag", { msg: m }).catch(function(){}); } catch(e){}
+  }
   function mainVideo(){
     var vs = document.querySelectorAll("video");
     var best = null, bestA = 0;
@@ -207,21 +235,40 @@ const VIDEO_RESUME_JS: &str = r#"(function(){
   function resumable(v){
     return v && (!isFinite(v.duration) || v.duration >= 90);
   }
+  var lastSaveDiag = 0;
   function save(v){
     try {
       if (!resumable(v)) return; // реклама/короткие вставки не трогаем
       var t = v.currentTime || 0;
       var nearEnd = isFinite(v.duration) && t >= v.duration - 10;
-      if (t > 5 && !nearEnd) localStorage.setItem(key(), String(Math.floor(t)));
-      else if (t <= 5) localStorage.removeItem(key());
+      if (t > 5 && !nearEnd) {
+        localStorage.setItem(key(), String(Math.floor(t)));
+        var now = Date.now();
+        if (now - lastSaveDiag > 20000) { lastSaveDiag = now; diag("push k=" + key() + " t=" + Math.floor(t)); }
+      } else if (t <= 5) {
+        localStorage.removeItem(key());
+      }
     } catch(e){}
   }
   function restore(v){
+    // Диагностику держим В САМОМ НАЧАЛЕ (до resumable): если restore вообще
+    // вызывается, но молча выходит на resumable()===false (duration ещё 0/NaN/
+    // короткое на этапе, когда видео только появилось в DOM), без diag мы бы
+    // ничего не узнали. Теперь видно каждый вызов и причину пропуска.
+    try { if (!v.__apbDiag) diag("restore-call ct=" + Math.floor(v.currentTime) + " dur=" + (isFinite(v.duration) ? Math.floor(v.duration) : "inf") + " ready=" + v.readyState); } catch(e){}
     try {
       if (!resumable(v)) return;
-      var t = parseFloat(localStorage.getItem(key()) || "0") || 0;
+      var kkey = key();
+      var t = parseFloat(localStorage.getItem(kkey) || "0") || 0;
       if (t > 5 && v.currentTime < 5 && (!isFinite(v.duration) || t < v.duration - 10)) {
         v.currentTime = t;
+        if (!v.__apbDiag) { v.__apbDiag = true; diag("restore k=" + kkey + " -> " + Math.floor(t)); }
+      } else if (t > 5 && !v.__apbDiag) {
+        v.__apbDiag = true;
+        diag("restore-skip k=" + kkey + " v=" + Math.floor(t) + " ct=" + Math.floor(v.currentTime) + " dur=" + (isFinite(v.duration) ? Math.floor(v.duration) : "inf"));
+      } else if (!v.__apbDiag) {
+        v.__apbDiag = true;
+        diag("restore-empty k=" + kkey);
       }
     } catch(e){}
   }
@@ -234,6 +281,35 @@ const VIDEO_RESUME_JS: &str = r#"(function(){
     last = now; save(v);
   }, 2000);
   window.addEventListener("pagehide", function(){ var v = mainVideo(); if (v) save(v); });
+  // НАДЁЖНЫЙ FALLBACK-ВОССТАНОВИТЕЛЬ: события loadedmetadata/play/observer
+  // у YouTube с холодного старта НЕнадёжны (video появляется поздно, к моменту
+  // навешивания hook может уже проскочить нужное состояние → restore молчит,
+  // это и ловили в журнале 97). Поэтому дополнительно крутим ВРЕМЕННЫЙ цикл:
+  // каждые 600мс в течение ~30с берём главное <video> и, если позицию ещё не
+  // восстанавливали и она реально нужна, ставим currentTime. Не зависит от
+  // событий/observer вообще. __apbRestored на самом <video> не даёт зациклиться.
+  (function(){
+    var attempt = 0, tried = 0;
+    var timer = setInterval(function(){
+      attempt++;
+      if (attempt > 50) { clearInterval(timer); return; }
+      var v = mainVideo();
+      if (!v) return;
+      if (v.__apbRestored) { clearInterval(timer); return; }
+      var kkey = key();
+      var t = parseFloat(localStorage.getItem(kkey) || "0") || 0;
+      if (t > 5 && v.currentTime < 5 && (!isFinite(v.duration) || t < v.duration - 10)) {
+        tried++;
+        // duration могла быть ещё 0/NaN — позволяем установить, но требование 90с
+        // для НЕ-числовой длительности держим (resumable: !isFinite допускается).
+        try { v.currentTime = t; } catch(e){}
+        if (v.currentTime >= 5 || tried > 12) { v.__apbRestored = true; clearInterval(timer); }
+        else if (tried === 1) diag("fallback-restore t=" + Math.floor(t) + " current=" + Math.floor(v.currentTime));
+      } else if (v.currentTime >= 5 || !(t > 5)) {
+        clearInterval(timer);
+      }
+    }, 600);
+  })();
   // SPA-навигация (pushState): YouTube подменяет ролик без перезагрузки —
   // после смены URL пробуем восстановить позицию уже нового видео.
   function hook(v){
@@ -250,11 +326,160 @@ const VIDEO_RESUME_JS: &str = r#"(function(){
   } catch(e){}
   try {
     var ps = history.pushState;
-    history.pushState = function(){ var r = ps.apply(this, arguments); setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; }); }, 60); return r; };
-    window.addEventListener("popstate", function(){ setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; }); }, 60); });
+    history.pushState = function(){ var r = ps.apply(this, arguments); setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; v.__apbRestored = false; }); }, 60); return r; };
+    window.addEventListener("popstate", function(){ setTimeout(function(){ document.querySelectorAll("video").forEach(function(v){ v.__apbVp = false; v.__apbRestored = false; }); }, 60); });
   } catch(e){}
   document.querySelectorAll("video").forEach(hook);
 })();"#;
+
+// Кинорежим ютуба («широкий экран»): в обычных браузерах раз включённый —
+// держится «навсегда, для любого ролика». Сам YouTube хранит это состояние
+// в JS-конфигурации плеера нестабильно, поэтому у нас при открытии нового
+// ролика (особенно с холодного старта) раскладка каждый раз стартует с
+// дефолтной. Решение без сторонних API: запоминаем ВЫБОР юзера (кнопка
+// `button.ytp-size-button` = переключатель «кинорежим», состояние видно по
+// атрибуту `theater` на ytd-watch-flexy) в localStorage и, если на экране
+// плеер не в том режиме, незаметно кликаем кнопку один раз. Работает и для
+// SPA-переходов между роликами, и для холодной загрузки страницы ролика.
+const THEATER_KEEP_JS: &str = r#"(function(){
+  if (window.__apbTheater) return; window.__apbTheater = true;
+  var PREF = "apb-theater";
+  function diag(m){
+    try { var i = window.__TAURI_INTERNALS__; if (i && i.invoke) i.invoke("page_diag", { msg: m }).catch(function(){}); } catch(e){}
+  }
+  function flexy(){ return document.querySelector("ytd-watch-flexy"); }
+  function theaterOn(){
+    var f = flexy();
+    return !!(f && (f.hasAttribute("theater") || (f.className || "").indexOf("theater") !== -1));
+  }
+  function desired(){
+    try { return localStorage.getItem(PREF) === "1"; } catch(e){ return false; }
+  }
+  function store(v){
+    try { localStorage.setItem(PREF, v ? "1" : "0"); } catch(e){}
+  }
+  // Текущий выбор юзера фиксируем в момент его собственного переключения.
+  function hookSizeButton(){
+    try {
+      var b = document.querySelector("button.ytp-size-button");
+      if (b && !b.__apbTh) {
+        b.__apbTh = true;
+        b.addEventListener("click", function(){ setTimeout(function(){ store(theaterOn()); }, 400); });
+      }
+    } catch(e){}
+  }
+  function apply(){
+    var f = flexy();
+    if (!f) return;
+    var cur = theaterOn();
+    var want = desired();
+    if (cur === want) return;
+    hookSizeButton();
+    var b = document.querySelector("button.ytp-size-button");
+    if (b) b.click();
+  }
+  // SPA-переходы: yt-navigate-finish + наблюдение за появлением плеера.
+  document.addEventListener("yt-navigate-finish", function(){ setTimeout(apply, 700); });
+  try {
+    var mo = new MutationObserver(function(){ hookSizeButton(); apply(); });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  } catch(e){}
+  // Холодная загрузка: несколько попыток с нарастающей задержкой.
+  [0, 200, 800, 2000, 4000].forEach(function(d){ setTimeout(apply, d); });
+  // УПОРСТВО: состояние ютуба нестабильно, одного клика может не хватить
+  // (кнопка появляется позже, flexy ещё без атрибута at-theather). Крутим
+  // цикл каждые 1.5с в течение ~30с: если расхождение «хочу-факт» есть и
+  // кнопка в DOM — кликаем; останавливаемся, когда совпало. Ниже желаемое
+  // ни разу не перетирается — юзер-выбор в записи переключателя сохраняется.
+  (function(){
+    var n = 0;
+    var timer = setInterval(function(){
+      n++;
+      if (n > 20) { clearInterval(timer); return; }
+      var f = flexy();
+      if (!f) return;
+      if (theaterOn() === desired()) { clearInterval(timer); return; }
+      hookSizeButton();
+      var b = document.querySelector("button.ytp-size-button");
+      if (b) { b.click(); diag("theater-click want=" + (desired() ? "1" : "0")); }
+    }, 1500);
+  })();
+  // Диагностика для юзера/лога: показываем, что видим (flexy есть/нет,
+  // текущий театр-статус, желаемое, кнопка есть/нет) сразу при старте.
+  try {
+    var ff = flexy();
+    diag("theater-init flexy=" + (ff ? "yes" : "no") + " cur=" + (theaterOn() ? "1" : "0") + " want=" + (desired() ? "1" : "0") + " btn=" + (document.querySelector("button.ytp-size-button") ? "yes" : "no"));
+  } catch(e){}
+})();"#;
+
+// Спа-сайты (YouTube) меняют URL через pushState без топ-навигации, поэтому
+// on_navigation о URL нового ролика НЕ сообщает. Сторона страницы сама
+// замечает смену location.href (pushState/replaceState/popstate/hashchange
+// + лёгкий поллинг на случай экзотики) и докладывает в бэкенд через
+// __TAURI_INTERNALS__.invoke → page_url_push (команда получает вебвью-автора,
+// поэтому id эмитится голым, как и остальные события). Схема-none,
+// навигацию НЕ трогаем — только invoke (location.assign на apb-* уже один
+// раз ломал страницы). Если invoke вдруг недоступен — сценарий молча
+// вырубается, URL просто останется старым (названия продолжают работать
+// через on_document_title_changed).
+const URL_CHANGE_JS: &str = r#"(function(){
+  if (window.__apbUrlPush) return; window.__apbUrlPush = true;
+  function report(){
+    try {
+      var h = location.href;
+      if (h === window.__apbLastUrl) return;
+      window.__apbLastUrl = h;
+      var i = window.__TAURI_INTERNALS__;
+      if (i && i.invoke) i.invoke("page_url_push", { url: h }).catch(function(){});
+    } catch(e){}
+  }
+  try {
+    var ps = history.pushState, rs = history.replaceState;
+    history.pushState = function(){ var r = ps.apply(this, arguments); report(); return r; };
+    history.replaceState = function(){ var r = rs.apply(this, arguments); report(); return r; };
+  } catch(e){}
+  window.addEventListener("popstate", report);
+  window.addEventListener("hashchange", report);
+  setInterval(report, 1200);
+  var base = document.title;
+  try {
+    var t0 = new MutationObserver(function(){ if (document.title !== base) { report(); base = document.title; } });
+    t0.observe(document.querySelector("head") || document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
+  } catch(e){}
+})();"#;
+
+#[tauri::command]
+pub(crate) async fn page_url_push(webview: tauri::Webview, url: String) -> Result<(), String> {
+    if url.trim().is_empty() {
+        return Ok(());
+    }
+    let raw_label = webview.label().to_string();
+    let bare = raw_label
+        .strip_prefix("page-")
+        .unwrap_or(&raw_label)
+        .to_string();
+    append_backend_log(&format!("[url-push] {bare} {url}"));
+    let app = webview.app_handle().clone();
+    let payload = serde_json::json!({ "id": bare, "url": url });
+    let _ = tauri::Emitter::emit(&app, "page-url-changed", payload);
+    Ok(())
+}
+
+/// Служебный канал диагностики из СТОРОНЫ СТРАНИЦЫ в журнал бэкенда
+/// (apb\logs\shell-debug.log, метка [page]). Сделан командой, как
+/// page_url_push: tauri сам подставляет вебвью-автора. Нужен, чтобы
+/// страничные скрипты (позиция видео, кинорежим ютуба) могли доказать,
+/// что происходит «на поле», не полагаясь на догадки.
+#[tauri::command]
+pub(crate) async fn page_diag(webview: tauri::Webview, msg: String) -> Result<(), String> {
+    let raw_label = webview.label().to_string();
+    let bare = raw_label
+        .strip_prefix("page-")
+        .unwrap_or(&raw_label)
+        .to_string();
+    append_backend_log(&format!("[page] {bare} {msg}"));
+    Ok(())
+}
 
 #[tauri::command]
 pub(crate) async fn shell_open_tab(app: AppHandle, url: String) -> Result<(), String> {
@@ -385,6 +610,12 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
     };
     let app_for_main = app.clone();
     let label_for_main = label.clone();
+    // Голый id вкладки (page_open возвращает ИМЕННО его). События обязаны
+    // нести id, иначе фронтенд tabs.find() по "page-<uuid>" промахивается
+    // мимо вкладки с id "<uuid>" — заголовки и смена URL не доходили до UI
+    // (корень бага «названий нет», найден по логам: [nav] идут, а вкладка
+    // не находится).
+    let nav_id = id.clone();
 
     // Fingerprint spoofing script for this profile (injected before page JS).
     // None when protection is Off — zero overhead for Standard level.
@@ -488,9 +719,27 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
                     let _ = tauri::Emitter::emit(&nav_app, "page-open-tab", payload);
                     return false;
                 }
-                let payload = serde_json::json!({ "id": nav_label, "url": url.to_string() });
+                append_backend_log(&format!("[nav] {nav_label} {url}"));
+                let payload = serde_json::json!({ "id": nav_id, "url": url.to_string() });
                 let _ = tauri::Emitter::emit(&nav_app, "page-url-changed", payload);
                 true
+            })
+            // Реальный заголовок страницы (<title>) — для названия сайта в
+            // омнибоксе и подписей вкладок. Приходит как только WebView2
+            // прогрузит документ. id — голый uuid (как page_open возвращает),
+            // а не "page-"-label: фронтенд ищет вкладку ТОЛЬКО по нему.
+            .on_document_title_changed(move |w, title| {
+                let t = title.trim().to_string();
+                let raw_label = w.label().to_string();
+                let bare = raw_label
+                    .strip_prefix("page-")
+                    .unwrap_or(&raw_label)
+                    .to_string();
+                append_backend_log(&format!("[title-ev] {bare} {t}"));
+                if t.is_empty() { return; }
+                let app = w.app_handle().clone();
+                let payload = serde_json::json!({ "id": bare, "title": t });
+                let _ = tauri::Emitter::emit(&app, "page-title-changed", payload);
             })
             .on_new_window(move |url, _features| {
                 let payload = serde_json::json!({ "url": url.to_string() });
@@ -500,6 +749,8 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
             .initialization_script(HOTKEY_RELAY_JS)
             .initialization_script(NEW_TAB_RELAY_JS)
             .initialization_script(VIDEO_RESUME_JS)
+            .initialization_script(THEATER_KEEP_JS)
+            .initialization_script(URL_CHANGE_JS)
             // MUST match the shell window's args exactly (same user-data
             // folder = same WebView2 environment options requirement).
             .additional_browser_args(crate::liveprivacy::browser_args())
@@ -582,6 +833,7 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         window
             .add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;
+        append_backend_log(&format!("[open] {label_for_main} ok"));
         Ok(())
     })??;
 
@@ -723,8 +975,13 @@ pub(crate) async fn page_close(app: AppHandle, id: String) -> Result<bool, Strin
     let app_for_main = app.clone();
     let _ = app.run_on_main_thread(move || {
         if let Some(webview) = app_for_main.get_webview(&removed_label) {
-            // Detach by moving offscreen; destroying via the parent window
-            // isn't exposed — hide instead, cheap and reliable everywhere.
+            // Сначала останавливаем страницу: полного уничтожения webview в
+            // tauri 2 нет (закрыто только "спрятать за экран"), а скрытый
+            // WebView2 продолжает молотить и играть аудио/видео — юзер видел
+            // баг «выключил видео вкладкой, а звук остался навсегда».
+            // Навигация на about:blank мгновенно выгружает страницу и её
+            // медиа-процессы — звук умирает вместе с ней.
+            let _ = webview.navigate(tauri::Url::parse("about:blank").unwrap());
             let _ = webview.set_bounds(page_rect(-60000.0, -60000.0, 1.0, 1.0));
         }
     });

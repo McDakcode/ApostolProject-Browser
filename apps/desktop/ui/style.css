@@ -471,6 +471,16 @@ body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding
   color: var(--text); font-size: 12.5px;
   transition: border-color var(--speed), box-shadow var(--speed);
 }
+/* Фавикон сайта в начале адресной строки (при показе названия/URL) */
+.addr-fav {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+.address-form.has-fav input { padding-left: 36px; }
 .address-form input::placeholder { color: var(--text-faint); }
 .address-form input:focus {
   outline: none;
@@ -929,6 +939,7 @@ body.sidebar-right .sidebar {
   overflow: hidden;
   z-index: 5;
 }
+.internal-host:not(.hidden) { animation: riseIn 0.22s cubic-bezier(.2,.7,.3,1) both; }
 .isec-nav {
   width: 190px; flex-shrink: 0;
   border-right: 1px solid var(--border);
@@ -954,6 +965,40 @@ body.sidebar-right .sidebar {
 .internal-page { max-width: 640px; }
 .internal-page.wide-page { max-width: none; }
 .internal-title { font-size: 21px; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.01em; }
+
+/* ============================================================
+   Settings layout: adjustable width + optional 2 columns
+   (user picks in Settings → Оформление).
+   ============================================================ */
+#internalHost .internal-page[data-searchable] {
+  max-width: var(--settings-w, 640px);
+}
+body.settings-2col .isec-body {
+  padding: 26px 34px 60px;
+}
+body.settings-2col #internalHost .internal-page[data-searchable] {
+  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 4px 26px;
+  align-items: start;
+}
+body.settings-2col #internalHost .internal-page[data-searchable] > .internal-title,
+body.settings-2col #internalHost .internal-page[data-searchable] > .panel-subtitle,
+body.settings-2col #internalHost .internal-page[data-searchable] > .theme-buttons,
+body.settings-2col #internalHost .internal-page[data-searchable] > .list,
+body.settings-2col #internalHost .internal-page[data-searchable] > details,
+body.settings-2col #internalHost .internal-page[data-searchable] > .badge-row,
+body.settings-2col #internalHost .internal-page[data-searchable] > button,
+body.settings-2col #internalHost .internal-page[data-searchable] > .pz-row,
+body.settings-2col #internalHost .internal-page[data-searchable] > .pz-grid {
+  grid-column: 1 / -1;
+}
+body.settings-2col .pz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+}
 
 /* Personalization controls */
 .pz-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
@@ -2255,3 +2300,20 @@ html.is-maximized body {
 @media (prefers-reduced-motion: reduce) {
   html.is-maximized body { transition: none; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Невидимые полоски ресайза за края окна. tao для frameless-окна ловит
+   ресайз только за верхний край (маркер тени), поэтому бока и низ тянутся
+   этими оверлеями (создаются в boot-core.js) с вызовом
+   startResizeDragging() напрямую. Максимизированное окно не ресайзится. */
+#winResize { position: fixed; inset: 0; pointer-events: none; z-index: 999998; }
+#winResize .rs { position: absolute; pointer-events: auto; }
+#winResize .rs[data-dir="top"]        { top: 0; left: 8px; right: 8px; height: 5px; cursor: n-resize; }
+#winResize .rs[data-dir="bottom"]     { bottom: 0; left: 8px; right: 8px; height: 5px; cursor: s-resize; }
+#winResize .rs[data-dir="left"]       { left: 0; top: 8px; bottom: 8px; width: 5px; cursor: w-resize; }
+#winResize .rs[data-dir="right"]      { right: 0; top: 8px; bottom: 8px; width: 5px; cursor: e-resize; }
+#winResize .rs[data-dir="top-left"]   { top: 0; left: 0; width: 10px; height: 10px; cursor: nw-resize; }
+#winResize .rs[data-dir="top-right"]  { top: 0; right: 0; width: 10px; height: 10px; cursor: ne-resize; }
+#winResize .rs[data-dir="bottom-left"]  { bottom: 0; left: 0; width: 10px; height: 10px; cursor: sw-resize; }
+#winResize .rs[data-dir="bottom-right"] { bottom: 0; right: 0; width: 10px; height: 10px; cursor: se-resize; }
+html.is-maximized #winResize .rs { pointer-events: none; }

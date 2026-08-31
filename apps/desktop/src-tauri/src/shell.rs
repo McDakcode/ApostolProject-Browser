@@ -171,178 +171,29 @@ pub(crate) fn relayout(app: &AppHandle) {
     });
 }
 
-// Made by MrDuck
-// ---------------------------------------------------------------------------
-// Smooth manual window dragging (Windows)
-//
-// The default tao/start_dragging path enters the modal SC_MOVE loop, which
-// starves the renderer: on a frameless window with WebView2 the content
-// trails the cursor and stutters — very visible on high-refresh monitors.
-// Instead we track the cursor in a tight dedicated thread and reposition the
-// window ourselves (~500 Hz updates), so motion is as smooth as the display.
-// ---------------------------------------------------------------------------
-
-use std::sync::atomic::{AtomicBool, Ordering};
-
-static DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
-
-#[tauri::command]
-pub(crate) fn shell_begin_drag(app: AppHandle) -> Result<(), String> {
-    if DRAG_ACTIVE.load(Ordering::SeqCst) {
-        return Ok(());
-    }
-    let window = app.get_window("shell").ok_or_else(|| "нет окна оболочки".to_string())?;
-    let hwnd_isize = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
-    if DRAG_ACTIVE.swap(true, Ordering::SeqCst) {
-        return Ok(());
-    }
-    let started = std::thread::Builder::new()
-        .name("apb-drag".into())
-        .spawn(move || {
-            // На время перетаскивания анимации DWM прочь — иначе лаг.
-            set_dwm_transitions_raw(hwnd_isize, false);
-            #[cfg(windows)]
-            unsafe { drag_loop(hwnd_isize) }
-            set_dwm_transitions_raw(hwnd_isize, true);
-            DRAG_ACTIVE.store(false, Ordering::SeqCst);
-        });
-    if started.is_err() {
-        DRAG_ACTIVE.store(false, Ordering::SeqCst);
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-unsafe fn drag_loop(hwnd_raw: isize) {
-    use windows_sys::Win32::Foundation::{POINT, RECT};
-    use windows_sys::Win32::Graphics::Gdi::{
-        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
-    };
-    use windows_sys::Win32::System::Threading::Sleep;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetCursorPos, GetWindowRect, IsZoomed, SetWindowPos,
-        ShowWindow, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MAXIMIZE, SW_RESTORE,
-    };
-    const VK_LBUTTON: i32 = 0x01;
-    // Курсор физически упирается в границу монитора (ОС сама его туда
-    // клэмпит), поэтому пары пикселей допуска достаточно, чтобы поймать
-    // жест «дотащили до края».
-    const SNAP_EDGE_PX: i32 = 3;
-    let hwnd = hwnd_raw as *mut core::ffi::c_void;
-
-    let mut pt = POINT { x: 0, y: 0 };
-    if GetCursorPos(&mut pt) == 0 {
-        return;
-    }
-    let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-    GetWindowRect(hwnd, &mut rc);
-    let mut off_x = pt.x - rc.left;
-    let off_y_base = pt.y - rc.top;
-
-    // Dragging a maximized window: restore it first and keep the grab point
-    // proportionally under the cursor (like native titlebar behaviour).
-    if IsZoomed(hwnd) != 0 {
-        let total_w = ((rc.right - rc.left) as f32).max(1.0);
-        let rel = (((pt.x - rc.left) as f32) / total_w).clamp(0.08, 0.92);
-        ShowWindow(hwnd, SW_RESTORE);
-        Sleep(30);
-        GetWindowRect(hwnd, &mut rc);
-        let w = rc.right - rc.left;
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            pt.x - (rel * w as f32) as i32,
-            pt.y - off_y_base.max(14),
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
-        GetWindowRect(hwnd, &mut rc);
-        off_x = pt.x - rc.left;
-    }
-
-    let off_y = pt.y - rc.top;
-    let _ = off_y_base;
-    loop {
-        Sleep(2);
-        if GetAsyncKeyState(VK_LBUTTON) >= 0 {
-            break; // button released
-        }
-        if GetCursorPos(&mut pt) == 0 {
-            break;
-        }
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            pt.x - off_x,
-            pt.y - off_y,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
-    }
-
-    // --- Aero Snap на отпускании ---
-    // Наш ручной цикл заменяет системный SC_MOVE, который обычно сам ловит
-    // подтаскивание к краю экрана — досюда добавляем то же поведение
-    // вручную: у верхнего края монитора разворачиваем (через ShowWindow,
-    // чтобы IsZoomed()-ветка выше корректно восстанавливала окно при
-    // следующем перетаскивании), у левого/правого — прилепляем к половине
-    // рабочей области (с учётом панели задач).
-    if GetCursorPos(&mut pt) != 0 {
-        let hmon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
-        let mut mi: MONITORINFO = std::mem::zeroed();
-        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
-        if GetMonitorInfoW(hmon, &mut mi) != 0 {
-            let mon = mi.rcMonitor;
-            let work = mi.rcWork;
-            if pt.y <= mon.top + SNAP_EDGE_PX {
-                ShowWindow(hwnd, SW_MAXIMIZE);
-            } else if pt.x <= mon.left + SNAP_EDGE_PX {
-                SetWindowPos(
-                    hwnd,
-                    std::ptr::null_mut(),
-                    work.left,
-                    work.top,
-                    (work.right - work.left) / 2,
-                    work.bottom - work.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE,
-                );
-            } else if pt.x >= mon.right - SNAP_EDGE_PX {
-                let half_w = (work.right - work.left) / 2;
-                SetWindowPos(
-                    hwnd,
-                    std::ptr::null_mut(),
-                    work.right - half_w,
-                    work.top,
-                    half_w,
-                    work.bottom - work.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE,
+/// Explicitly ENABLE Windows DWM window-transition animations (fade-in on
+/// open, fly-out to the taskbar on minimize, scale on restore/maximize) for
+/// our frameless window. By default a `decorations(false)` window can come
+/// up with these suppressed; this guarantees the same smooth system behavior
+/// as a regular bordered window. `DWMWA_TRANSITIONS_FORCEDISABLED = 0` means
+/// "do not force-disable", i.e. keep DWM transitions on.
+pub(crate) fn enable_dwm_transitions(window: &Window) {
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+        if let Ok(h) = window.hwnd() {
+            let on: i32 = 0; // FALSE → transitions enabled
+            unsafe {
+                DwmSetWindowAttribute(
+                    h.0 as *mut core::ffi::c_void,
+                    3, // DWMWA_TRANSITIONS_FORCEDISABLED
+                    &on as *const i32 as *const core::ffi::c_void,
+                    core::mem::size_of::<i32>() as u32,
                 );
             }
         }
     }
+    #[cfg(not(target_os = "windows"))]
+    let _ = window;
 }
-
-/// DWM-анимации сворачивания/разворачивания/открытия окна. Включены всегда —
-/// гасятся только на время ручного перетаскивания (см. shell_begin_drag),
-/// иначе каждое перемещение анимируется и окно «отстаёт» от курсора.
-#[cfg(windows)]
-fn set_dwm_transitions_raw(hwnd_raw: isize, enabled: bool) {
-    unsafe {
-        use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
-        let disabled: i32 = if enabled { 0 } else { 1 };
-        DwmSetWindowAttribute(
-            hwnd_raw as *mut core::ffi::c_void,
-            3, // DWMWA_TRANSITIONS_FORCEDISABLED
-            &disabled as *const i32 as *const core::ffi::c_void,
-            4,
-        );
-    }
-}
-
-#[cfg(not(windows))]
-fn set_dwm_transitions_raw(_hwnd_raw: isize, _enabled: bool) {}
-
-// Made by MrDuck
+

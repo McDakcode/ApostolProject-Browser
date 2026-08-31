@@ -27,7 +27,7 @@ mod util;
 
 use cmd::downloads::DownloadsLog;
 use cmd::*;
-use shell::{relayout, shell_begin_drag, PageTabs};
+use shell::{enable_dwm_transitions, relayout, PageTabs};
 use state::AppState;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -68,11 +68,15 @@ fn main() {
                 .min_inner_size(900.0, 560.0)
                 .resizable(true)
                 .decorations(false)
+                .maximized(true)
                 .additional_browser_args(liveprivacy::browser_args())
                 .build()
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-            // DWM-анимации открытия/сворачивания оставлены включёнными —
-            // гасятся только на время перетаскивания (см. shell.rs).
+            // DWM-анимации появления/сворачивания окна явно включены —
+            // безрамочное окно иначе может прийти без системных переходов.
+            if let Some(win) = app.get_window("shell") {
+                enable_dwm_transitions(&win);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -157,6 +161,8 @@ fn main() {
             ext_set_enabled,
             ext_sandbox_policy,
             page_open,
+            page_url_push,
+            page_diag,
             page_navigate,
             page_activate,
             page_hide_all,
@@ -165,7 +171,6 @@ fn main() {
             page_split_set,
             page_split_off,
             open_in_system,
-            shell_begin_drag,
             app_version,
             update_check,
             update_install
