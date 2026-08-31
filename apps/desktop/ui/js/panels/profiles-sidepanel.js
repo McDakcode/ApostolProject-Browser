@@ -90,9 +90,24 @@ const sidePanel = document.getElementById("sidePanel");
 function openSidePanel(tabId) {
   closeInternal(false);
   document.querySelectorAll(".rail-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === tabId));
-  document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === tabId));
+  // Scoped to #sidePanel: some ids here (e.g. "history", "downloads") are
+  // reused by the separate internal-host settings pages, so an unscoped
+  // ".panel" query would also toggle .active on that hidden duplicate —
+  // harmless visually (it stays hidden), but wrong and worth avoiding.
+  document.querySelectorAll("#sidePanel .panel").forEach((p) => p.classList.toggle("active", p.id === tabId));
   sidePanel.classList.add("open");
   syncPageLayout();
+  // BUG FIX: these drawer lists were never populated when you actually
+  // open the panel from the toolbar — only as a side effect of adding/
+  // removing an entry elsewhere in the session (e.g. saving a bookmark).
+  // That's why opening History/Bookmarks/Downloads/Notes from the
+  // toolbar could show completely empty ("black emptiness") even though
+  // the same data appears fine via the Settings → History page, which
+  // does fetch on open. Fetch fresh data every time the drawer opens.
+  if (tabId === "bookmarks") refreshBookmarks().catch(() => {});
+  else if (tabId === "history") refreshHistory().catch(() => {});
+  else if (tabId === "downloads") refreshDownloads().catch(() => {});
+  else if (tabId === "notes") refreshNotes().catch(() => {});
 }
 
 function closeSidePanel() {

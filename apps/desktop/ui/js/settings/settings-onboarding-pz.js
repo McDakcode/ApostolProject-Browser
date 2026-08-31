@@ -65,7 +65,7 @@ function showOnboarding() {
 // width, glass, motion — persisted in localStorage ("apb-ui").
 // ---------------------------------------------------------------------
 
-const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", sound: true, settingsCols: false, settingsW: 640 };
+const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", thLink: "", thSurface: "", thBorder: "", sound: true, settingsCols: false, settingsW: 640 };
 
 // Curated font stacks for the UI font setting
 const AP_FONTS = {
@@ -119,6 +119,18 @@ function pzApply() {
   if (p.thBg) rs.setProperty("--bg", p.thBg); else rs.removeProperty("--bg");
   if (p.thSoft) rs.setProperty("--bg-soft", p.thSoft); else rs.removeProperty("--bg-soft");
   if (p.thText) { rs.setProperty("--text", p.thText); } else rs.removeProperty("--text");
+  // Was already saved/restored via presets & export but never actually
+  // applied to a CSS variable, or restored into its own control on load —
+  // fixing so the "Ссылки и акцент-текст" picker actually does something.
+  if (p.thLink) rs.setProperty("--link", p.thLink); else rs.removeProperty("--link");
+  if (p.thSurface) {
+    rs.setProperty("--surface", p.thSurface);
+    // Nudge the hover/active shade toward the text color (works for both
+    // light and dark custom surfaces) so hover states stay visible.
+    rs.setProperty("--surface-2", `color-mix(in srgb, ${p.thSurface} 88%, var(--text) 12%)`);
+  } else { rs.removeProperty("--surface"); rs.removeProperty("--surface-2"); }
+  if (p.thBorder) { rs.setProperty("--border", p.thBorder); rs.setProperty("--border-strong", p.thBorder); }
+  else { rs.removeProperty("--border"); rs.removeProperty("--border-strong"); }
   // Home background
   const be = document.getElementById("browserEmpty");
   if (be) {
@@ -163,6 +175,9 @@ function pzSyncControls() {
   ap("thBg", (el) => { el.value = p.thBg || "#000000"; });
   ap("thSoft", (el) => { el.value = p.thSoft || "#0b0b0d"; });
   ap("thText", (el) => { el.value = p.thText || "#f2f2f4"; });
+  ap("thLink", (el) => { el.value = p.thLink || "#7fb0ff"; });
+  ap("thSurface", (el) => { el.value = p.thSurface || "#1a1a1e"; });
+  ap("thBorder", (el) => { el.value = p.thBorder || "#333338"; });
   ap("apBgColor", (el) => { el.value = p.bgColor || "#000000"; });
   ap("apBgImg", (el) => { el.value = p.bgImg && !p.bgImg.startsWith("data:") ? p.bgImg : ""; });
   ap("apGlassA", (el) => { el.value = p.glassA || (document.documentElement.getAttribute("data-theme") === "light" ? 90 : 85); });
@@ -170,7 +185,11 @@ function pzSyncControls() {
   ap("apWsCount", (el) => { el.checked = p.wsCount !== false; });
   ap("apSideHover", (el) => { el.checked = !!p.sideHover; });
   ap("apSettingsCols", (el) => { el.checked = !!p.settingsCols; });
-  ap("apSettingsW", (el) => { el.value = p.settingsW || 640; });
+  ap("apSettingsW", (el) => {
+    el.value = p.settingsW || 640;
+    const disp = document.getElementById("apSettingsWVal");
+    if (disp) disp.textContent = (p.settingsW || 640) + "px";
+  });
 }
 
 document.getElementById("pzAccent").addEventListener("input", (e) => pzUpdate({ accent: e.target.value }));
@@ -197,8 +216,10 @@ apOn("apFontSel", "change", (e) => pzUpdate({ font: e.target.value }));
 apOn("apFontSize", "input", (e) => pzUpdate({ fontSize: +e.target.value }));
 apOn("thBg", "input", (e) => pzUpdate({ thBg: e.target.value }));
 apOn("thSoft", "input", (e) => pzUpdate({ thSoft: e.target.value }));
+apOn("thSurface", "input", (e) => pzUpdate({ thSurface: e.target.value }));
+apOn("thBorder", "input", (e) => pzUpdate({ thBorder: e.target.value }));
 apOn("thText", "input", (e) => pzUpdate({ thText: e.target.value }));
-apOn("thReset", "click", () => { pzUpdate({ thBg: "", thSoft: "", thText: "" }); pzSyncControls(); });
+apOn("thLink", "input", (e) => pzUpdate({ thLink: e.target.value }));
 apOn("apBgColor", "input", (e) => pzUpdate({ bgColor: e.target.value }));
 apOn("apBgImg", "change", (e) => pzUpdate({ bgImg: e.target.value.trim() }));
 apOn("apBgReset", "click", () => { pzUpdate({ bgColor: "", bgImg: "" }); pzSyncControls(); });
@@ -209,7 +230,20 @@ apOn("apSound", "change", (e) => pzUpdate({ sound: e.target.checked }));
 apOn("apWsCount", "change", (e) => pzUpdate({ wsCount: e.target.checked }));
 apOn("apBgDim", "input", (e) => pzUpdate({ bgDim: +e.target.value }));
 apOn("apSettingsCols", "change", (e) => pzUpdate({ settingsCols: e.target.checked }));
-apOn("apSettingsW", "input", (e) => pzUpdate({ settingsW: +e.target.value }));
+// The width slider lives on the very panel it resizes. Applying the width
+// live on "input" used to make the panel — and the slider's own row
+// inside it — visibly shift under the cursor while dragging (a feedback
+// loop, since `.pz-row` stretches to the panel's current width and
+// spreads label/control apart with justify-content:space-between). Fixed
+// properly by giving #apSettingsWRow a fixed max-width in index.html so
+// it no longer grows with the panel — the slider now stays put while you
+// drag, and it's safe to go back to live "input" updates so you can
+// actually see the rest of the page resize as you move it.
+apOn("apSettingsW", "input", (e) => {
+  const disp = document.getElementById("apSettingsWVal");
+  if (disp) disp.textContent = e.target.value + "px";
+  pzUpdate({ settingsW: +e.target.value });
+});
 
 // --- Downloads folder setting ---
 // Made by MrDuck
@@ -248,26 +282,31 @@ function thPresetRefresh() {
   sel.innerHTML = '<option value="">— мои темы —</option>' +
     Object.keys(ps).map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
 }
-apOn("thApply", "click", () => {
-  pzUpdate({
+// Reads every "Своя тема" color input at once — kept in one place so
+// thApply / thPresetSave stay in sync with whatever fields exist.
+function thReadFields() {
+  return {
     thBg: document.getElementById("thBg").value,
     thSoft: document.getElementById("thSoft").value,
+    thSurface: document.getElementById("thSurface").value,
+    thBorder: document.getElementById("thBorder").value,
     thText: document.getElementById("thText").value,
     thLink: document.getElementById("thLink").value,
-  });
+  };
+}
+apOn("thApply", "click", () => {
+  pzUpdate(thReadFields());
   toast("Цвета применены");
 });
-apOn("thReset", "click", () => { pzUpdate({ thBg: "", thSoft: "", thText: "", thLink: "" }); pzSyncControls(); });
+apOn("thReset", "click", () => {
+  pzUpdate({ thBg: "", thSoft: "", thSurface: "", thBorder: "", thText: "", thLink: "" });
+  pzSyncControls();
+});
 apOn("thPresetSave", "click", async () => {
   const name = await prompt("Название темы:", "Моя тема");
   if (!name || !name.trim()) return;
   const ps = getPresets();
-  ps[name.trim()] = {
-    thBg: document.getElementById("thBg").value,
-    thSoft: document.getElementById("thSoft").value,
-    thText: document.getElementById("thText").value,
-    thLink: document.getElementById("thLink").value,
-  };
+  ps[name.trim()] = thReadFields();
   localStorage.setItem("apb-themes", JSON.stringify(ps));
   thPresetRefresh();
   document.getElementById("thPresetSel").value = name.trim();
@@ -278,7 +317,10 @@ apOn("thPresetLoad", "click", () => {
   if (!name) return;
   const t = getPresets()[name];
   if (!t) return;
-  pzUpdate({ thBg: t.thBg || "", thSoft: t.thSoft || "", thText: t.thText || "", thLink: t.thLink || "" });
+  pzUpdate({
+    thBg: t.thBg || "", thSoft: t.thSoft || "", thSurface: t.thSurface || "",
+    thBorder: t.thBorder || "", thText: t.thText || "", thLink: t.thLink || "",
+  });
   pzSyncControls();
   toast(`Тема «${name}» применена`);
 });

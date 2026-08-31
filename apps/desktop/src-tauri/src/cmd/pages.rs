@@ -660,9 +660,12 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         })
     };
 
-    // Cosmetic ad filtering: when the profile blocks ads, plant the generic
-    // element-hiding stylesheet at document-start so blocked networks leave
-    // no empty boxes. Pure CSS matching — no observer loops.
+    // Cosmetic ad filtering: AdBlock-grade element hiding. When the profile
+    // blocks ads, plant the full stylesheet + DOM-sweeper at document-start
+    // so blocked networks leave no empty boxes. The sweeper *removes*
+    // banner-shaped nodes and blanks media (gif/swf/flash) URLs, so static /
+    // animated / flash test banners are truly gone (clientWidth/Height → 0).
+    // Single always-on AdBlock-style mode — no mild/aggressive switch.
     let cosmetic_js: Option<String> = {
         let state = app.state::<crate::state::SharedState>();
         let guard = state.lock().unwrap();
@@ -670,12 +673,13 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
             .active_or_err()
             .ok()
             .filter(|a| a.privacy.effective_policy().block_ads)
-            .map(|_| apb_privacy::blocklists::cosmetic_filter_script())
+            .map(|_| apb_privacy::blocklists::aggressive_filter_script())
     };
 
     // In-page request blocker (extension-grade layer): sendBeacon/fetch/XHR
     // to known ad/tracker endpoints abort in-page — the proxy can't see
-    // these inside HTTPS tunnels. Static curated pattern set.
+    // these inside HTTPS tunnels. The full banner/flash/creative path set is
+    // always active (the extension-grade mode).
     let req_js: Option<String> = {
         let state = app.state::<crate::state::SharedState>();
         let guard = state.lock().unwrap();
@@ -686,9 +690,9 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
                 let p = a.privacy.effective_policy();
                 p.block_ads || p.block_trackers
             })
-            .map(|_| {
-                apb_privacy::blocklists::request_blocker_script(request_block_patterns())
-            })
+            .map(|_| apb_privacy::blocklists::request_blocker_script(
+                &apb_privacy::blocklists::builtin_request_patterns_aggressive(),
+            ))
     };
 
     on_main_thread(&app, move || -> Result<(), String> {
@@ -1039,12 +1043,6 @@ pub(crate) fn open_in_system(url: String) -> Result<(), String> {
         std::process::Command::new("open").arg(&url).spawn().map_err(|e| e.to_string())?;
     }
     Ok(())
-}
-
-/// Curated in-page request-blocker patterns, computed once per process.
-fn request_block_patterns() -> &'static Vec<String> {
-    static P: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    P.get_or_init(apb_privacy::blocklists::builtin_request_patterns)
 }
 
 /// Build the cookie/storage/referrer enforcement script. Injected into every

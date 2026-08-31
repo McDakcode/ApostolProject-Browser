@@ -686,15 +686,30 @@ let relayoutTimer = null;
 // backend, which positions native tab webviews there. This automatically
 // accounts for the tabstrip/toolbar heights, the rail, the side panel and
 // the note editor pane — no pixel constants duplicated in Rust.
+//
+// BUG FIX: `getBoundingClientRect()` used to be read once, synchronously,
+// right when syncPageLayout() was CALLED — before the requested delay.
+// For the debounced (non-immediate) path that's the wrong moment: e.g.
+// opening the toolbar side panel calls this right after adding the
+// `.open` class, but the panel's width transition (~0.16s) hasn't
+// actually run yet, so the captured rect still reflected the OLD,
+// pre-panel (full-width) layout. 170ms later we'd still push that STALE
+// rect to the backend, so the real tab's native webview got positioned
+// at its old, too-wide bounds — sitting right on top of where the side
+// panel had since opened, instead of alongside it. That's the "opens a
+// toolbar tab over a live site and it's just black/shows the site
+// squeezed weirdly" bug. Fix: measure fresh at the moment we actually
+// push, not at the moment we schedule the push.
 function syncPageLayout(immediate = false) {
-  const view = document.getElementById("browserView").getBoundingClientRect();
-  const push = () =>
+  const push = () => {
+    const view = document.getElementById("browserView").getBoundingClientRect();
     invokeV2("page_relayout", {
       x: view.left,
       y: view.top,
       width: view.width,
       height: view.height,
     }).catch(() => {});
+  };
   clearTimeout(relayoutTimer);
   if (immediate) push();
   else relayoutTimer = setTimeout(push, 170); // > 0.16s panel transition

@@ -582,8 +582,14 @@ body.sidebar-right .sidebar {
   box-shadow: -1px 0 6px rgba(0, 0, 0, 0.06);
 }
 
-.panel { display: none; animation: riseIn 0.16s ease both; }
+.panel { display: none; }
 .panel.active { display: block; }
+/* Reliable open/switch animation for internal pages: driven by JS toggling
+   this class (see openInternal in sound-internalpages.js) with a forced
+   reflow in between, rather than relying on the browser to notice a
+   none->block transition (which is inconsistent when several panels
+   share the same parent and swap visibility back to back). */
+.panel.ip-anim { animation: riseIn 0.2s cubic-bezier(.2,.7,.3,1) both; }
 
 .panel-title {
   font-size: 14.5px; font-weight: 700; color: var(--text);
@@ -976,23 +982,29 @@ body.sidebar-right .sidebar {
 body.settings-2col .isec-body {
   padding: 26px 34px 60px;
 }
-body.settings-2col #internalHost .internal-page[data-searchable] {
+/* Two-column settings layout: real CSS multi-column (not CSS Grid), so
+   the browser balances content by HEIGHT across both columns — the
+   ~second half of what used to require scrolling now lands visibly in
+   column 2, instead of column 2 staying empty while everything piles
+   into column 1 (which is what plain grid row-interleaving gave us:
+   most sections only have one non-header block, so there was rarely
+   anything to place beside it in a second column). */
+body.settings-2col #internalHost .internal-page[data-searchable].active {
   max-width: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 4px 26px;
-  align-items: start;
+  column-count: 2;
+  column-gap: 30px;
+  column-fill: balance;
 }
-body.settings-2col #internalHost .internal-page[data-searchable] > .internal-title,
-body.settings-2col #internalHost .internal-page[data-searchable] > .panel-subtitle,
-body.settings-2col #internalHost .internal-page[data-searchable] > .theme-buttons,
-body.settings-2col #internalHost .internal-page[data-searchable] > .list,
-body.settings-2col #internalHost .internal-page[data-searchable] > details,
-body.settings-2col #internalHost .internal-page[data-searchable] > .badge-row,
-body.settings-2col #internalHost .internal-page[data-searchable] > button,
-body.settings-2col #internalHost .internal-page[data-searchable] > .pz-row,
-body.settings-2col #internalHost .internal-page[data-searchable] > .pz-grid {
-  grid-column: 1 / -1;
+/* Keep each row/button/control-group intact — multi-column layout will
+   otherwise happily slice a `.pz-row` or `.pz-grid` in half across the
+   column break. Long, naturally-scrollable content (`.list`, `details`)
+   is left free to split like an ordinary paragraph would; forcing those
+   to stay whole would make balancing lumpy (one big indivisible chunk
+   dominating a column). Buttons keep their natural compact size in
+   multi-column layout automatically — no stretching to fight here. */
+body.settings-2col #internalHost .internal-page[data-searchable].active > *:not(.list):not(details) {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
 }
 body.settings-2col .pz-grid {
   display: grid;

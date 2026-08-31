@@ -395,7 +395,7 @@
                 <p class="panel-subtitle">Раскладка настроек</p>
                 <div class="pz-grid">
                   <label class="pz-row"><span>Два столбца настроек</span><input type="checkbox" id="apSettingsCols" /></label>
-                  <label class="pz-row"><span>Ширина блоков настроек</span><input type="range" id="apSettingsW" min="560" max="1200" value="640" /></label>
+                  <label class="pz-row" id="apSettingsWRow" style="max-width:460px"><span>Ширина блоков настроек <span id="apSettingsWVal" class="hint" style="margin:0">640px</span></span><input type="range" id="apSettingsW" min="560" max="1200" value="640" /></label>
                 </div>
                 <p class="hint">Два столбца раскладывают поля настроек компактнее; ширина блока управляет их шириной.</p>
 
@@ -436,10 +436,12 @@
 
                 <p class="panel-subtitle">Своя тема (переопределяет чёрную/белую)</p>
                 <div class="pz-grid">
-                  <label class="pz-row"><span>Фон приложения</span><input type="color" id="thBg" /></label>
-                  <label class="pz-row"><span>Панели и шапки</span><input type="color" id="thSoft" /></label>
-                  <label class="pz-row"><span>Текст</span><input type="color" id="thText" /></label>
-                  <label class="pz-row"><span>Ссылки и акцент-текст</span><input type="color" id="thLink" /></label>
+                  <label class="pz-row"><span>Фон приложения</span><input type="color" id="thBg" value="#000000" /></label>
+                  <label class="pz-row"><span>Панели и шапки</span><input type="color" id="thSoft" value="#0b0b0d" /></label>
+                  <label class="pz-row"><span>Карточки и списки</span><input type="color" id="thSurface" value="#1a1a1e" /></label>
+                  <label class="pz-row"><span>Границы</span><input type="color" id="thBorder" value="#333338" /></label>
+                  <label class="pz-row"><span>Текст</span><input type="color" id="thText" value="#f2f2f4" /></label>
+                  <label class="pz-row"><span>Ссылки и акцент-текст</span><input type="color" id="thLink" value="#7fb0ff" /></label>
                 </div>
                 <div class="pz-row" style="flex-wrap:wrap;gap:6px;justify-content:flex-start">
                   <button id="thApply" class="ghost-btn small">Применить цвета</button>

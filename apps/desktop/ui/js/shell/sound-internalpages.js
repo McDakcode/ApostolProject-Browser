@@ -68,8 +68,25 @@ async function openInternal(id) {
   document.querySelectorAll(".rail-item").forEach((b) => b.classList.remove("active"));
   internalHost.classList.remove("hidden");
   document.getElementById("browserEmpty").classList.add("hidden");
-  document.querySelectorAll("#internalHost .panel").forEach((p) =>
-    p.classList.toggle("active", p.id === id));
+  // Reliable entrance animation for the panel that just became active —
+  // both on first open and when switching between sections. A forced
+  // reflow (offsetWidth read) between removing and re-adding the class
+  // guarantees the animation restarts every time, instead of depending
+  // on the browser to notice a display:none -> block transition.
+  // NOTE: several ids here (e.g. "history") are reused by an unrelated
+  // side-panel drawer element elsewhere in the document, so we resolve
+  // the target through this already-scoped #internalHost .panel list
+  // rather than a fresh document.getElementById(id), which could grab
+  // the wrong node.
+  document.querySelectorAll("#internalHost .panel").forEach((p) => {
+    const isActive = p.id === id;
+    p.classList.toggle("active", isActive);
+    if (isActive) {
+      p.classList.remove("ip-anim");
+      void p.offsetWidth;
+      p.classList.add("ip-anim");
+    }
+  });
   document.querySelectorAll(".isec-link").forEach((b) =>
     b.classList.toggle("active", b.dataset.isec === id));
   renderTabStrip();
