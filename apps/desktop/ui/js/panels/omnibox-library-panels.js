@@ -94,7 +94,7 @@ async function refreshHistory() {
     const li = document.createElement("li");
     li.innerHTML = `<div><div class="title">${escapeHtml(histDisplayTitle(v.title, v.url))}</div><div class="meta">${escapeHtml(hostnameOf(v.url))} · ${new Date(v.visited_at).toLocaleString()}</div></div>`;
     li.title = v.url;
-    li.onclick = () => createTab(v.url); // новая вкладка, не трогаем текущую
+    li.onclick = () => createTab(v.url, null, { background: true }); // фоном: текущая вкладка не меняется
     list.appendChild(li);
   }
 }
@@ -166,7 +166,7 @@ function renderFullHistory() {
     li.querySelector(".h-url").textContent = r.url;
     li.querySelector(".h-meta").textContent = d.toLocaleTimeString();
     li.querySelector(".h-prof").textContent = r.profile;
-    li.onclick = () => createTab(r.url); // новая вкладка, не трогаем текущую
+    li.onclick = () => createTab(r.url, null, { background: true }); // фоном: текущая вкладка не меняется
     ul.appendChild(li);
   }
 }
@@ -1274,6 +1274,9 @@ document.getElementById("aiTranslateBtn")?.addEventListener("click", async () =>
 // ---------------------------------------------------------------------
 
 async function refreshExtensions() {
+  // Расширения СПРЯТАНЫ (сессия 111): страницы нет в DOM — тихо пропускаем,
+  // код оставлен для расширений v2.
+  if (!document.getElementById("extList")) return;
   const exts = await invoke("ext_list");
   const ul = document.getElementById("extList");
   ul.innerHTML = "";
@@ -1283,7 +1286,8 @@ async function refreshExtensions() {
   }
   for (const e of exts) {
     const li = document.createElement("li");
-    li.innerHTML = `<div><div class="title">${escapeHtml(e.manifest.name)} v${escapeHtml(e.manifest.version)}</div><div class="meta">id: ${escapeHtml(e.manifest.id)} · ${e.enabled_globally ? "включено" : "выключено"}${e.manifest.permissions?.length ? " · права: " + e.manifest.permissions.join(", ") : ""}</div></div>`;
+    const masks = (e.manifest.matches || []).join(", ") || "—";
+    li.innerHTML = `<div><div class="title">${escapeHtml(e.manifest.name)} v${escapeHtml(e.manifest.version)}</div><div class="meta">id: ${escapeHtml(e.manifest.id)} · ${e.enabled_globally ? "включено" : "выключено"} · скрипт: ${escapeHtml(e.manifest.entry_point)} · сайты: ${escapeHtml(masks)}${e.manifest.permissions?.length ? " · права: " + e.manifest.permissions.join(", ") : ""}</div></div>`;
 
     const toggle = document.createElement("button");
     toggle.className = "ghost-btn";
@@ -1293,25 +1297,35 @@ async function refreshExtensions() {
       await refreshExtensions();
     };
 
-    const grant = document.createElement("button");
-    grant.className = "ghost-btn";
-    grant.textContent = "Дать право: текущая вкладка";
-    grant.onclick = async () => {
-      try {
-        await invoke("ext_grant", { extId: e.manifest.id, perms: ["current_tab"] });
-        const dangerous = await invoke("ext_sandbox_policy", { extId: e.manifest.id });
-        alert("Право выдано.\nВозможности: " + dangerous.capabilities.join("; "));
-      } catch (err) { alert(err); }
-      await refreshExtensions();
-    };
+    // Выдача прав: кнопка на каждое ЗАЯВЛЕННОЕ в манифесте право (выдать
+    // можно только заявленное — бэкенд это проверяет). Опасные права после
+    // выдачи требуют отдельного подтверждения (ext_approve_dangerous).
+    const DANGEROUS = ["all_websites", "cookies", "history", "network", "filesystem", "ai_context"];
+    for (const p of e.manifest.permissions || []) {
+      const pb = document.createElement("button");
+      pb.className = "ghost-btn";
+      pb.textContent = "＋ " + p;
+      pb.onclick = async () => {
+        try {
+          await invoke("ext_grant", { extId: e.manifest.id, perms: [p] });
+          if (DANGEROUS.includes(p)) {
+            const ok = await confirm(`Расширение «${e.manifest.name}» получит опасное право ${p}. Подтвердить?`);
+            if (ok) await invoke("ext_approve_dangerous", { extId: e.manifest.id, perm: p });
+          }
+          const pol = await invoke("ext_sandbox_policy", { extId: e.manifest.id });
+          alert("Право выдано: " + p + ".\nАктивные возможности: " + (pol.capabilities.join("; ") || "нет"));
+        } catch (err) { alert(err); }
+        await refreshExtensions();
+      };
+      li.appendChild(pb);
+    }
 
     li.appendChild(toggle);
-    li.appendChild(grant);
     ul.appendChild(li);
   }
 }
 
-document.getElementById("extInstallBtn").addEventListener("click", async () => {
+document.getElementById("extInstallBtn")?.addEventListener("click", async () => {
   const path = document.getElementById("extPathInput").value.trim();
   if (!path) return;
   try {

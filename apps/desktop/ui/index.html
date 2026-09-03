@@ -201,7 +201,9 @@
               <button class="isec-link" data-isec="privacy"><svg class="ic"><use href="#i-shield"/></svg> Приватность</button>
               <button class="isec-link" data-isec="history"><svg class="ic"><use href="#i-clock"/></svg> История</button>
               <button class="isec-link" data-isec="vault"><svg class="ic"><use href="#i-key"/></svg> Пароли</button>
-              <button class="isec-link" data-isec="extensions"><svg class="ic"><use href="#i-puzzle"/></svg> Расширения</button>
+              <!-- Расширения: пункт меню спрятан (юзер, сессия 111) — вернём
+                   вместе с расширениями v2. -->
+              <!-- <button class="isec-link" data-isec="extensions"><svg class="ic"><use href="#i-puzzle"/></svg> Расширения</button> -->
               <div class="isec-search-wrap">
                 <svg class="ic isec-search-icon"><use href="#i-search"/></svg>
                 <input id="settingsSearch" class="isec-search" type="text" placeholder="Поиск…" autocomplete="off" spellcheck="false" />
@@ -535,6 +537,11 @@
                 </div>
               </section>
 
+              <!-- РАСШИРЕНИЯ СПРЯТАНЫ (юзер, сессия 111: «пока удали или
+                   закомментируй»): рантайм v1 в бэкенде остаётся, UI вернём
+                   вместе с расширениями v2. Для возврата: раскомментировать
+                   блок + пункт «Расширения» в меню isec выше. -->
+              <!--
               <section id="extensions" class="panel internal-page">
                 <h2 class="internal-title">Расширения</h2>
                 <p class="hint">Установка из папки с manifest.json. Разрешения выдаются по профилю; опасные требуют отдельного подтверждения.</p>
@@ -544,6 +551,7 @@
                 </div>
                 <ul id="extList" class="list"></ul>
               </section>
+              -->
 
             </div>
           </div>
@@ -857,20 +865,22 @@
       } catch (_) {}
     });
   </script>
-  <script src="js/core/debug-log.js"></script>
-  <script src="js/core/boot-core.js?v=6"></script>
+  <!-- Debug-логгер НЕ подключён здесь: в debug-сборке его инжектит бэкенд
+       (main.rs DEBUG_FRONTEND_JS, initialization_script до всех скриптов),
+       в release-сборке логгера нет вообще. -->
+  <script src="js/core/boot-core.js?v=7"></script>
   <script src="js/shell/updater-ui.js?v=2"></script>
-  <script src="js/shell/sitefx-ctxmenu-find.js?v=10"></script>
-  <script src="js/shell/theme-searchengines.js"></script>
+  <script src="js/shell/sitefx-ctxmenu-find.js?v=11"></script>
+  <script src="js/shell/theme-searchengines.js?v=3"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>
   <script src="js/shell/sound-internalpages.js?v=2"></script>
-  <script src="js/tabs/session-ws-downloads-tabs.js?v=18"></script>
-  <script src="js/home/home-widgets.js"></script>
-  <script src="js/panels/omnibox-library-panels.js?v=17"></script>
+  <script src="js/tabs/session-ws-downloads-tabs.js?v=19"></script>
+  <script src="js/home/home-widgets.js?v=2"></script>
+  <script src="js/panels/omnibox-library-panels.js?v=19"></script>
   <script src="js/notes/notes-editor.js?v=10"></script>
-  <script src="js/settings/settings-onboarding-pz.js?v=13"></script>
+  <script src="js/settings/settings-onboarding-pz.js?v=14"></script>
   <script src="js/graph/graph-settings.js"></script>
-  <script src="js/graph/graph.js?v=5"></script>
+  <script src="js/graph/graph.js?v=7"></script>
 </body>
 </html>
 

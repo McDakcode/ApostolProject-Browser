@@ -85,6 +85,7 @@ commands.allow = [
     "ext_set_enabled",
     "ext_sandbox_policy",
     "page_open",
+    "page_open_bg",
     "page_url_push",
     "page_diag",
     "page_navigate",
@@ -99,4 +100,6 @@ commands.allow = [
     "app_version",
     "update_check",
     "update_install",
+    "settings_theme_save",
+    "settings_search_save",
 ]

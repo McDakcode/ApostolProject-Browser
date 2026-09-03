@@ -483,9 +483,7 @@ const TOUR_STEPS = [
   { action: () => { openInternal("vault"); }, sel: ["#vaultContentBox", "#vaultSetupBox"],
     title: "Сейф паролей",
     text: "Локальное хранилище паролей: AES-256-GCM + Argon2id. Данные никогда не покидают компьютер. Импорт/экспорт JSON." },
-  { action: () => { openInternal("extensions"); }, sel: "#extensions .internal-title",
-    title: "Расширения",
-    text: "Установка из папки с manifest.json, разрешения выдаются по профилю." },
+  // Расширения спрятаны (сессия 111) — команда палитры убрана до расширений v2.
 
   { action: () => {
       const ih = document.getElementById("internalHost");

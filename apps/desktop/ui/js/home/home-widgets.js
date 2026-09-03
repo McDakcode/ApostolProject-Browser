@@ -138,7 +138,7 @@ async function renderHome() {
       const s = document.createElement("span");
       s.textContent = v.title;
       c.append(f, s);
-      c.onclick = () => createTab(v.url); // новая вкладка, не трогаем текущую
+      c.onclick = () => createTab(v.url, null, { background: true }); // фоном: текущая вкладка не меняется
       rc.appendChild(c);
     }
     if (!visits.length) rc.innerHTML = '<span class="hint">Здесь появятся посещённые сайты</span>';

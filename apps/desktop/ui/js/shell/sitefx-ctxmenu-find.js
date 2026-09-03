@@ -43,7 +43,7 @@ function showShellMenu(x, y, target) {
       } else if (!tab.isNew && !tab.asleep && tab.url && tab.id !== activeTabId) {
         items.push(ctxItem("⬓ Разделить экран (сплит)", () => window.apbSplitWith(tab.id)));
       }
-      items.push(ctxItem("📄 Дублировать", () => createTab(tab.url)));
+      items.push(ctxItem("📄 Дублировать", () => createTab(tab.url, null, { background: true })));
       items.push(ctxItem("✕ Закрыть вкладку", () => closeTab(tab.id), true));
       items.push(ctxItem("🧹 Закрыть остальные", () => {
         for (const t of [...tabs]) if (t.id !== tab.id) closeTab(t.id);

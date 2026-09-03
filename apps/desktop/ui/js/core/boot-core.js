@@ -211,17 +211,45 @@ function toast(msg, kind) {
 }
 
 // ---------------------------------------------------------------------
-// Force dark theme on sites that don't have one (smart invert)
+// Тёмная тема для сайтов — НЕ слепая инверсия, а поэтапная перекраска:
+//  1) SMART-PAINT: тёмная база (bg/text/border/links) + color-scheme:dark
+//     (нативные контролы и скроллбары темнеют сами). Картинки/видео не
+//     трогаем — не выцветают, как при инверсии.
+//  2) Фолбэк: если через 700мс фон страницы остался светлым (сайт красит
+//     фон инлайном/хитро) — включаем прежнюю аккуратную инверсию html с
+//     РЕ-инверсией медиа (img/video/svg/iframe остаются нормальными).
 // ---------------------------------------------------------------------
 
 const tabDark = new Set();
 const DARK_ON_JS =
   "(function(){if(document.getElementById('apbDark'))return;" +
   "var s=document.createElement('style');s.id='apbDark';" +
-  "s.textContent='html{filter:invert(1) hue-rotate(180deg);background:#fff}" +
-  "img,video,picture,svg:not(#apbDark svg),iframe,[style*=\"background-image:url\"]{filter:invert(1) hue-rotate(180deg)}';" +
-  "document.documentElement.appendChild(s);})();";
-const DARK_OFF_JS = "(function(){var s=document.getElementById('apbDark');if(s)s.remove();})();";
+  "s.textContent='" +
+  "html{color-scheme:dark!important;background:#18181c!important;color:#f2f2f4!important}" +
+  "body{background:#18181c!important;color:#f2f2f4!important}" +
+  "a{color:#8ab4f8!important}" +
+  ".text-muted,.text-secondary,.text-faint{color:#a6a6b0!important}" +
+  ".bg-white,.bg-light,.light-theme,.theme-light{background:#18181c!important;color:#f2f2f4!important}" +
+  ".text-dark,.text-black{color:#f2f2f4!important}" +
+  ".border{border-color:#3a3a44!important}" +
+  "';" +
+  "document.documentElement.appendChild(s);" +
+  // Фолбэк-детектор светлого фона:body всё ещё белый/прозрачный → сайту
+  // нужен фильтр. Ре-инверсия медиа не даёт «негативным» стать фото.
+  "setTimeout(function(){" +
+  "try{" +
+  "var bg=document.defaultView.getComputedStyle(document.body).backgroundColor;" +
+  "var trans=!bg||bg==='rgba(0, 0, 0, 0)'||bg==='transparent';" +
+  "var light=/^\\(?(255|254|250|248)/.test(bg.replace(/\\s/g,''))||bg.indexOf('255, 255, 255')>=0;" +
+  "if(trans||light){" +
+  "var s3=document.createElement('style');s3.id='apbDark3';" +
+  "s3.textContent='html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}'" +
+  "+'img,video,picture,svg:not(#apbDark svg),iframe,[style*=\"background-image:url\"]{filter:invert(1) hue-rotate(180deg)}';" +
+  "document.documentElement.appendChild(s3);}}catch(e){}" +
+  "},700);})();";
+const DARK_OFF_JS =
+  "(function(){['apbDark','apbDark3'].forEach(function(i){" +
+  "var s=document.getElementById(i);if(s)s.remove();});})();";
 
 function applyDarkTab(id, on) {
   invokeV2("page_eval", { id, js: on ? DARK_ON_JS : DARK_OFF_JS }).catch(() => {});

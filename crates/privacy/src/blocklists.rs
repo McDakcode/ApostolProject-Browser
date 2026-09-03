@@ -40,6 +40,11 @@ pub fn builtin_rules() -> Vec<(&'static str, TrackerCategory)> {
         ("hotlog.ru", Analytics),
         ("onthe.io", Analytics),
         ("histats.com", Analytics),
+        // Error/telemetry CDNs commonly probed right next to ad/tracker
+        // scripts — Sentry, PerfOps-style collectors.
+        ("sentry-cdn.com", Analytics),
+        ("sentry.io", Analytics),
+        ("glitchtip.com", Analytics),
         // ---------------- Advertising ----------------
         ("doubleclick.net", Advertising),
         ("googlesyndication.com", Advertising),
@@ -200,22 +205,25 @@ pub const AGGRESSIVE_CSS: &str = r#"
 [id*="-ad-"],[id*="_ad_"],[class*="-ad-"],[class*="_ad_"],
 [id*="advert"],[class*="advert"],[id*="adslot"],[class*="adslot"],
 [id*="adunit"],[class*="adunit"],[id*="adsense"],[class*="adsense"],
-[id*="sponsor"],[class*="sponsor"],[id*="promo"],[class*="promo"],
+[id*="sponsor"],[class*="sponsor"],
 [id*="partner-post"],[class*="partner-post"],[class*="ad-container"],
 [id*="ad-banner"],[class*="ad-banner"],[class*="banner-ad"],
 [id*="top-banner"],[class*="top-banner"],[class*="sticky-ad"],
 [id*="sidebar-ad"],[class*="sidebar-ad"],[class*="advertorial"],
 [id*="ad-overlay"],[class*="ad-overlay"],[class*="pop-under"],
-[id*="popup-ad"],[class*="popup-ad"],[class*="interstitial"],
+[id*="popup-ad"],[class*="popup-ad"],
 [id*="ad-frame"],[class*="ad-frame"],[data-ad-client],[data-ad-slot],
 [data-ad],[data-ads],[data-advert],[data-nosnippet]{display:none!important}
-/* Banner/sponsor/promo textbook wrappers */
+/* promo/interstitial УБРАНЫ (сессия 110): [class*=promo] прятал реальные
+   промо-каталоги и карточки контента, interstitial — сплэш-экраны SPA,
+   скрывая которые мы получали «белый экран». banner-обёртки остаются,
+   но только как точные имена классов, не подстроки. */
 div.banner,section.banner,aside.banner,div.sponsor,section.sponsor,
 div.promo,section.promo,div.partner,section.partner,
 [class*="sponsored"],[id*="sponsored"],[class*="advertisement"],
 [id*="advertisement"],.adsbygoogle{display:none!important}
 /* Media that ships inside ad-shaped wrappers: gif/flash/iframe banners */
-img[src*=".gif"][src*="/ad"],img[src*=".swf"],object[type="application/x-shockwave-flash"],
+img[src*=".swf"],object[type="application/x-shockwave-flash"],
 embed[type="application/x-shockwave-flash"],object[classid*="clsid:D27"][classid*=":flash"],
 object[data*=".swf"],embed[src*=".swf"],iframe[src*="/ad/"],iframe[src*="adsense"],
 iframe[src*="doubleclick"],iframe[src*="googlesyndication"],iframe[src*="adfox"],
@@ -269,14 +277,29 @@ pub fn cosmetic_filter_script() -> String {
 /// flash / ad iframes) by blanking their URL. Removing (not just hiding)
 /// satisfies testers that probe for the element in `document`. Unknown
 /// whitespace/innocent-looking classes are left alone.
+///
+/// The MutationObserver alone is a weak hook for *flash/instant* banners:
+/// it fires asynchronously (as a task/microtask) so a `<object data="x.swf">`
+/// or an `<img src="/banners/ad.gif">` present in the initial HTML can start
+/// its network request before the observer callback runs. To close that race
+/// the sweeper also runs a dense burst of full scans in the first seconds
+/// (every ~140ms), plus fresh scans on DOMContentLoaded and window.load,
+/// ensuring banner nodes are ripped out long before a slow flash/gif load
+/// completes. After the burst it settles to a slow keep-alive sweep.
 fn aggressive_dom_script() -> String {
     r#"(() => {
   try {
     if (window.__apbAggAd) return;
     Object.defineProperty(window, "__apbAggAd", { value: true });
     const AD_CLASS_RE = /(^|[-_\s])(ad|ads|advert|adslot|adunit|adsense|banner|sponsor|promo|partner)(\d*)(\b|[-_\s]|$)/i;
-    const AD_ID_RE = /(^|[-_])(ad|ads|advert|adslot|adunit|adsense|banner|sponsor|promo)(\d*)(\b|[-_])/i;
-    const AD_HOST_RE = /\b(ad|ads|banner|sponsor|promo|advert|adsense|doubleclick|googlesyndication|adfox|mgid|taboola|outbrain|propeller|popads|criteo|taboola)([._-].*)?\./i;
+    const AD_ID_RE = /(^|[-_])(ad|ads|advert|adslot|adunit|adsense|banner|sponsor|promo|\d* x \d+|\d*x\d+)(\d*)(\b|[-_])/i;
+    const AD_HOST_RE = /\b(ad|ads|banner|sponsor|promo|advert|adsense|doubleclick|googlesyndication|adfox|mgid|taboola|outbrain|propeller|popads|criteo)([._-].*)?\./i;
+    const SWF_RE = /\.swf(\?|$)/i;
+    const BANNER_PATH_RE = /(\/banners?\/|\/ads?\/|\/advert|\/adsense|\/pagead\/|\/adframe|\/adbanner|\/adunit)/i;
+    // Имя файла-баннера обязано содержать ЯВНЫЙ ad/banner маркер, а не
+    // просто начинаться с "ad": иначе «admin.png», «advanced-bg.jpg»
+    // улетали вместе с рекламой и сайты разваливались.
+    const GIF_PNG_BANNER_RE = /\/(pr_?ad|ad_?banner|banner|_ad_|-ad-)[^/]*\.(gif|png|jpg|jpeg|webp)(\?|$)/i;
     const adish = (n) => {
       if (!n || n.nodeType !== 1) return false;
       const id = n.id || "";
@@ -285,6 +308,11 @@ fn aggressive_dom_script() -> String {
       if (cls && AD_CLASS_RE.test(cls)) {
         // Skip innocent "admin", "addition" style substrings via word filters.
         if (/\bad(admin|dress|dition|venture|apt|obe|ult|verb|dorable|visor)|\badmin\b/i.test(cls)) return false;
+        // Контентная защита: секции «banner/promo/sponsor» с существенным
+        // текстом — это контент сайта (герой/каталог), а не рекламный бокс.
+        // Реальная реклама текстом >160 символов почти не бывает. Без этой
+        // проверки свипер выкусывал hero-секции и сайты выглядели сломанными.
+        if ((n.textContent || "").trim().length > 160) return false;
         return true;
       }
       return false;
@@ -293,31 +321,52 @@ fn aggressive_dom_script() -> String {
     const killMedia = (n) => {
       try {
         if (!n || n.nodeType !== 1) return;
-        const raw = n.src || n.data || "";
+        const raw = n.currentSrc || n.src || n.data || "";
         const src = (raw || "").toLowerCase();
         const hostish = AD_HOST_RE.test(src);
-        const pathish = /(\/ad\/|\/ads\/|\/banner\/?|\/adsense|\/pagead\/|\/adframe|\/advert)/.test(src);
-        const adfile = /\.swf$/.test(src) || /\/(a[d]|banner)[^\/]*\.(gif|png|jpg|jpeg|webp)$/.test(src);
+        const pathish = BANNER_PATH_RE.test(src);
+        const adfile = SWF_RE.test(src) || GIF_PNG_BANNER_RE.test(src);
         if (hostish || pathish || adfile) { killEl(n); return; }
-        // Empty-source media nodes never carry real content (spacer gifs /
-        // already-blanked placeholders) — dropping them removes the box.
-        if (!raw && /^(IMG|OBJECT|EMBED|IFRAME)$/.test(n.tagName)) killEl(n);
+        // Native object/embed with a flash classid is always an ad/flash
+        // object here — remove pre-load (closes the localLoading probe).
+        if (/^(OBJECT|EMBED)$/.test(n.tagName) && /flash|shockwave|\.swf/i.test(src + (n.type||"") + (n.classid||""))) {
+          killEl(n); return;
+        }
+        // УДАЛЕНО: правило «пустые media-узлы» (IMG/IFRAME без src) —
+        // ленивые картинки (loading=lazy, data-src) и рамки-плейсхолдеры
+        // рендерятся БЕЗ src и выкусывались свипером → дыры в контенте
+        // и «белые» куски страниц. Нулевой убыток для блокировки рекламы:
+        // пустые узлы ничего не грузят.
       } catch (e) {}
     };
     const sweep = () => {
-      if (document.body) {
-        document.querySelectorAll("img,iframe,object,embed").forEach(killMedia);
-      }
-      if (document.body) {
-        document.querySelectorAll('div,section,aside,ins,iframe,object,embed').forEach((n) => { if (adish(n)) killEl(n); });
-      }
+      try {
+        if (document.body) {
+          document.querySelectorAll("img,iframe,object,embed").forEach(killMedia);
+          document.querySelectorAll('div,section,aside,ins,iframe,object,embed,form').forEach((n) => { if (adish(n)) killEl(n); });
+        }
+      } catch (e) {}
     };
-    sweep();
+    // Burst: dense scans for the first ~6s to beat flash/gif banner loads.
+    const BURST_TICKS = 42;
+    let burst = 0;
+    const burstSweep = () => {
+      sweep();
+      // Defer each request as flash finishes parsing/loading — keep ripping.
+      if (burst++ < BURST_TICKS) setTimeout(burstSweep, 140);
+    };
+    burstSweep();
+    // Extra passes after the page finishes composing (SPA insertions too).
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => { sweep(); }, true);
+    }
+    window.addEventListener("load", () => { sweep(); }, true);
     const obs = new MutationObserver(() => {
-      try { const m = (mutation) => { for (const nn of mutation.addedNodes || []) { if (nn.nodeType === 1) { if (adish(nn)) killEl(nn); else nn.querySelectorAll && nn.querySelectorAll('img,iframe,object,embed,div,section,aside,ins').forEach((c) => { if (adish(c)) killEl(c); else killMedia(c); }); } } }; obs.takeRecords().forEach(m); } catch (e) {}
+      try { const m = (mutation) => { for (const nn of mutation.addedNodes || []) { if (nn.nodeType === 1) { if (adish(nn)) killEl(nn); else nn.querySelectorAll && nn.querySelectorAll('img,iframe,object,embed,div,section,aside,ins,form').forEach((c) => { if (adish(c)) killEl(c); else killMedia(c); }); } } }; obs.takeRecords().forEach(m); } catch (e) {}
     });
     obs.observe(document.documentElement || document, { childList: true, subtree: true });
-    setInterval(sweep, 1500);
+    // Slow keep-alive for dynamic ad injection after the burst window.
+    setInterval(sweep, 2000);
   } catch (e) {}
 })();"#
         .to_string()
@@ -436,6 +485,8 @@ const AGGRESSIVE_REQUEST_TOKENS: &[&str] = &[
     "/adsense", "/pagead/", "/dfp/", "/gpt/ad", "/yandex_rtb", "/an.yandex",
     "/creativ", "/creative/", "/banner/", "/banner?", "/banner.", ".swf",
     "/sponsor", "/promo/ad", "/popunder", "/popunders", "/pop_exit", "/exitad",
+    "/banners/", "/ad_banner", "/ad-banner", "ads.js", "ads.json", "/track?",
+    "/collect?", "/beacon", "/pixel", "/analytics", "/telemetry", "/metrics?",
 ];
 
 /// URL substrings for the in-page shim in Aggressive mode: the balanced set
@@ -449,6 +500,10 @@ pub fn builtin_request_patterns_aggressive() -> Vec<String> {
 }
 
 /// Initialization script patching beacon/fetch/XHR with pattern matching.
+/// False-positive guard: tokens that do NOT start with "/" or "." (like
+/// `ads.js`) must sit at a path-segment boundary — otherwise a site loading
+/// `uploads.js` / `threads.js` gets its main bundle killed → белый экран.
+/// Anchored tokens ("/ad/", ".swf") keep plain substring semantics.
 pub fn request_blocker_script(patterns: &[String]) -> String {
     let json = serde_json::to_string(patterns).unwrap_or_else(|_| "[]".into());
     format!(
@@ -460,7 +515,18 @@ pub fn request_blocker_script(patterns: &[String]) -> String {
     const hit = (u) => {{
       if (!u) return false;
       const url = String(u).toLowerCase();
-      for (let i = 0; i < PAT.length; i++) if (url.includes(PAT[i])) return true;
+      for (let i = 0; i < PAT.length; i++) {{
+        const t = PAT[i];
+        const at = url.indexOf(t);
+        if (at < 0) continue;
+        // Токен без якоря слева (ads.js, ads.json, analytics) обязан
+        // начинаться с границы сегмента: символ перед ним — не буква/цифра.
+        // «uploads.js» больше НЕ режется; «/ads.js», «?ads.js» — режутся.
+        if (t[0] !== "/" && t[0] !== ".") {{
+          if (at > 0 && /[a-z0-9]/.test(url[at - 1])) continue;
+        }}
+        return true;
+      }}
       return false;
     }};
     const abort = () => new DOMException("APB request blocked", "AbortError");

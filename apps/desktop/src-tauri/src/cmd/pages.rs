@@ -64,12 +64,16 @@ const HOTKEY_RELAY_JS: &str = r#"(function(){
 // новой вкладке» (нативное меню WebView2 не умеет открывать вкладки в шелле).
 const NEW_TAB_RELAY_JS: &str = r#"(function(){
   if (window.__apbNewTabRelay) return; window.__apbNewTabRelay = true;
-  function schemeFallback(u){
+  function schemeFallback(u, focus){
     // Фолбэк без IPC: навигация на спец-схему перехватывается on_navigation
     // в Rust (false = отмена), URL открывается вкладкой в шелле.
-    try { location.assign("apb-newtab:" + encodeURIComponent(String(u))); } catch(e){}
+    // apb-newtab-f: — вариант «перейти сразу» (ПКМ-меню), apb-newtab: — фоном.
+    try {
+      var p = focus ? "apb-newtab-f:" : "apb-newtab:";
+      location.assign(p + encodeURIComponent(String(u)));
+    } catch(e){}
   }
-  function openInTab(u){
+  function openInTab(u, focus){
     if (!u) return null;
     try {
       var i = window.__TAURI_INTERNALS__;
@@ -79,24 +83,26 @@ const NEW_TAB_RELAY_JS: &str = r#"(function(){
         // reject тут никак не обрабатывался и вкладка просто не
         // открывалась без единой ошибки на экране. Теперь при reject
         // едем в schemeFallback вместо тишины.
-        var p = i.invoke("shell_open_tab", { url: String(u) });
+        var p = i.invoke("shell_open_tab", { url: String(u), focus: !!focus });
         if (p && typeof p.catch === "function") {
           p.catch(function(err){
             try { console.error("[apb] shell_open_tab failed:", err); } catch(e2){}
-            schemeFallback(u);
+            schemeFallback(u, focus);
           });
         }
         return null;
       }
     } catch(e){}
-    schemeFallback(u);
+    schemeFallback(u, focus);
     return null;
   }
   window.open = function(u, name){
     try {
       var s = String(u == null ? "" : u);
       if (s && s !== "about:blank" && (!name || name === "_blank")) {
-        openInTab(s);
+        // window.open = юзер кликнул по элементу и сайт открыл попап —
+        // это явное действие: открываем и ПЕРЕХОДИМ сразу.
+        openInTab(s, true);
       }
     } catch(e){}
     return null;
@@ -107,9 +113,14 @@ const NEW_TAB_RELAY_JS: &str = r#"(function(){
       var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
       if (!a) return;
       var tgt = a.getAttribute("target") || "";
-      if (tgt === "_blank" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey)) {
+      var plainBlank = tgt === "_blank" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+      var ctrlOpen = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+      if (plainBlank || ctrlOpen) {
         e.preventDefault(); e.stopPropagation();
-        openInTab(a.href);
+        // ПРАВИЛО ЮЗЕРА: левый клик по target=_blank — СРАЗУ перейти
+        // (юзер выбрал эту ссылку); Ctrl+клик — «в новую вкладку без
+        // перехода», как и ПКМ-меню (см. ниже) — открываем фоном.
+        openInTab(a.href, plainBlank);
       }
     } catch(err){}
   }, true);
@@ -167,17 +178,20 @@ const NEW_TAB_RELAY_JS: &str = r#"(function(){
       var img = e.target && e.target.closest ? e.target.closest("img") : null;
       var items = [];
       if (a) {
-        var href = a.href || "";
+        const href = a.href || "";
         if (href && href.indexOf("javascript:") !== 0) {
-          items.push({ label: "🔗 Открыть в новой вкладке", fn: function(){ openInTab(href); } });
+          // ПРАВИЛО ЮЗЕРА (инверсно к Chrome): ПКМ «Открыть в новой вкладке» =
+          // открыть ФОНОМ, не уходить со страницы. Левый клик по target=
+          // _blank (обработчик выше) — наоборот, сразу перейти.
+          items.push({ label: "🔗 Открыть в новой вкладке", fn: function(){ openInTab(href, false); } });
           items.push({ label: "📋 Копировать адрес ссылки", fn: function(){ copyText(href); } });
         }
       }
       if (img) {
-        var src = img.currentSrc || img.src || "";
+        const src = img.currentSrc || img.src || "";
         if (src) {
           if (items.length) items.push({ sep: true });
-          items.push({ label: "🖼 Открыть изображение в новой вкладке", fn: function(){ openInTab(src); } });
+          items.push({ label: "🖼 Открыть изображение в новой вкладке", fn: function(){ openInTab(src, false); } });
           items.push({ label: "📋 Копировать адрес изображения", fn: function(){ copyText(src); } });
         }
       }
@@ -482,10 +496,21 @@ pub(crate) async fn page_diag(webview: tauri::Webview, msg: String) -> Result<()
 }
 
 #[tauri::command]
-pub(crate) async fn shell_open_tab(app: AppHandle, url: String) -> Result<(), String> {
+pub(crate) async fn shell_open_tab(
+    app: AppHandle,
+    url: String,
+    focus: Option<bool>,
+) -> Result<(), String> {
     let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
-    // Глобальную функцию открывает session-ws-downloads-tabs.js (createTab).
-    let js = format!("window.__apbOpenTab && window.__apbOpenTab({:?})", parsed.as_str());
+    // focus=true (ПКМ «Открыть в новой вкладке») — юзер явно хочет перейти;
+    // по умолчанию (None/false) вкладка открывается фоном, как Ctrl+клик.
+    let focus = focus.unwrap_or(false);
+    // Глобальные функции открывает session-ws-downloads-tabs.js (createTab).
+    let js = format!(
+        "window.__apbOpenTab && window.__apbOpenTab({:?}, {})",
+        parsed.as_str(),
+        focus
+    );
     let app_for_main = app.clone();
     on_main_thread(&app, move || {
         let wv = app_for_main
@@ -588,20 +613,103 @@ pub(crate) fn page_extract_text(url: String) -> Result<serde_json::Value, String
     Ok(serde_json::json!({ "title": title.trim(), "text": clipped }))
 }
 
+// EXTENSION RUNTIME (продолжение): обёртка одного контент-скрипта.
+// Скрипт исполняется в изолированной функции — наружу торчит только объект
+// `apb`, чей API собран по ПРАВАМ профиля (GRANTED — локальный массив
+// этой обёртки; несколько расширений на одной странице не видят права друг
+// друга). Нет права = метод отсутствует/бросает понятную ошибку — никакой
+// фейк-функциональности: только то, что реально реализовано (getSelection
+// по current_tab/all_websites, copy по clipboard_write).
+fn extension_script_wrapper(cs: &apb_extensions::ContentScript) -> String {
+    use apb_extensions::Permission;
+    let has = |p: Permission| cs.granted.contains(&p);
+
+    let mut api = String::new();
+    // url читается всегда — это location.href самой страницы.
+    api.push_str(
+        "url: function () { try { return location.href; } catch (e) { return \"\"; } },\n    ",
+    );
+    if has(Permission::CurrentTab) || has(Permission::AllWebsites) {
+        api.push_str(
+            "getSelection: function () {\n      try { return String(window.getSelection ? window.getSelection() : \"\"); } catch (e) { return \"\"; }\n    },\n    ",
+        );
+    }
+    if has(Permission::ClipboardWrite) {
+        api.push_str(
+            "copy: function (text) {\n      try { return navigator.clipboard.writeText(String(text)); } catch (e) { return Promise.reject(e); }\n    },\n    ",
+        );
+    }
+    let perms_json = serde_json::to_string(&cs.granted).unwrap_or_else(|_| "[]".into());
+    let name_json = serde_json::to_string(&cs.extension_name).unwrap_or_else(|_| "\"?\"".into());
+    // `</` в теле расширения не должен закрыть литерал при встраивании в
+    // HTML-контекст — экранируем (в JS-строках и regex `<\/` == `</`).
+    let code = cs.code.replace("</", "<\\/");
+    format!(
+        r#"(function () {{
+  "use strict";
+  try {{
+    if (window.__apbExt_{id_safe}) return; // одна инжекция на документ
+    window.__apbExt_{id_safe} = true;
+    var GRANTED = {perms_json};
+    var apb = {{
+      id: "{id}",
+      name: {name_json},
+      granted: GRANTED.slice(),
+      {api}
+    }};
+    window.apb = apb;
+    try {{
+      (function () {{
+{code}
+      }})();
+    }} catch (e) {{
+      try {{ console.error("[APB ext {id_safe}] script error:", e); }} catch (x) {{}}
+    }}
+  }} catch (e) {{
+    try {{ console.error("[APB ext {id_safe}]", e); }} catch (x) {{}}
+  }}
+}})();"#,
+        id_safe = cs.extension_id.replace(['-', '.'], "_"),
+        id = cs.extension_id,
+        name_json = name_json,
+        perms_json = perms_json,
+        api = api,
+        code = code,
+    )
+}
+
 #[tauri::command]
 pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, String> {
+    page_open_impl(app, url, true).await
+}
+
+/// Background open: the new tab is created hidden and does NOT steal focus
+/// (§1 of the user's request: open-in-new-tab must not switch to it).
+#[tauri::command]
+pub(crate) async fn page_open_bg(app: AppHandle, url: String) -> Result<String, String> {
+    page_open_impl(app, url, false).await
+}
+
+async fn page_open_impl(
+    app: AppHandle,
+    url: String,
+    focus: bool,
+) -> Result<String, String> {
     let parsed: tauri::Url = url.parse().map_err(|_| format!("неверный URL: {url}"))?;
     let id = uuid::Uuid::new_v4().to_string();
     let label = format!("page-{id}");
 
-    // Hide all current tabs before adding the new one.
-    {
+    // Hide all current tabs before adding the new one — unless opening in
+    // the background: then the currently visible tab keeps its place.
+    if focus {
         let tabs = app.state::<PageTabs>();
         for t in tabs.tabs.lock().unwrap().iter_mut() {
             t.visible = false;
         }
     }
-    relayout(&app);
+    if focus {
+        relayout(&app);
+    }
 
     let measured = {
         let tabs = app.state::<PageTabs>();
@@ -695,6 +803,24 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
             ))
     };
 
+    // EXTENSION RUNTIME (§12, "content scripts by masks"): every enabled
+    // extension whose manifest `matches` cover this URL and whose granted
+    // permissions allow reading the page gets its entry script injected at
+    // document-start, wrapped in a sandboxed IIFE with a minimal `apb`
+    // API gated by the approved permissions. Extensions that don't match
+    // or lack grants are not injected at all. Registry is app-global
+    // (AppState.extensions); grants are per-profile.
+    let ext_scripts: Vec<apb_extensions::ContentScript> = {
+        let state = app.state::<crate::state::SharedState>();
+        let guard = state.lock().unwrap();
+        match guard.active.as_ref() {
+            Some(a) => guard
+                .extensions
+                .content_scripts_for(a.profile.id, parsed.as_str()),
+            None => Vec::new(),
+        }
+    };
+
     on_main_thread(&app, move || -> Result<(), String> {
         let window = app_for_main.get_window("shell").ok_or_else(|| "нет окна оболочки".to_string())?;
         let (x, y, width, height) =
@@ -709,17 +835,24 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         let mut builder = WebviewBuilder::new(&label_for_main, WebviewUrl::External(parsed))
             .on_navigation(move |url| {
                 // Фолбэк-канал «открыть вкладкой» без IPC (если remote-invoke
-                // запрещён): шим в странице ведёт на apb-newtab:<url>,
-                // навигация отменяется, URL уезжает в шелл новой вкладкой.
-                if url.scheme() == "apb-newtab" {
-                    let raw = url.as_str().trim_start_matches("apb-newtab:");
+                // запрещён): шим в странице ведёт на apb-newtab:<url> (фоном)
+                // или apb-newtab-f:<url> (ПКМ-меню — сразу перейти), навигация
+                // отменяется, URL уезжает в шелл новой вкладкой.
+                if url.scheme() == "apb-newtab" || url.scheme() == "apb-newtab-f" {
+                    let strip = if url.scheme() == "apb-newtab-f" {
+                        "apb-newtab-f:"
+                    } else {
+                        "apb-newtab:"
+                    };
+                    let raw = url.as_str().trim_start_matches(strip);
                     // crate::util::percent_decode вместо несуществующего
                     // percent_decode_str (внешний крейт percent-encoding не
                     // подключён и нигде не импортирован — билд падал с
                     // E0425). При неудачном декодировании открываем как есть
                     // — лучше сырой URL, чем сломанная вкладка.
                     let target = crate::util::percent_decode(raw).unwrap_or_else(|| raw.to_string());
-                    let payload = serde_json::json!({ "url": target });
+                    let focus = url.scheme() == "apb-newtab-f";
+                    let payload = serde_json::json!({ "url": target, "focus": focus });
                     let _ = tauri::Emitter::emit(&nav_app, "page-open-tab", payload);
                     return false;
                 }
@@ -746,7 +879,10 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
                 let _ = tauri::Emitter::emit(&app, "page-title-changed", payload);
             })
             .on_new_window(move |url, _features| {
-                let payload = serde_json::json!({ "url": url.to_string() });
+                // Нативный попап (шим window.open не поймал) = юзер кликнул
+                // → открываем вкладкой и переходим (правило юзера, инверсно
+                // к Chrome: ЛКМ/попап — сразу, ПКМ-меню/ctrl — фоном).
+                let payload = serde_json::json!({ "url": url.to_string(), "focus": true });
                 let _ = tauri::Emitter::emit(&nw_app, "page-open-tab", payload);
                 tauri::webview::NewWindowResponse::Deny
             })
@@ -834,17 +970,46 @@ pub(crate) async fn page_open(app: AppHandle, url: String) -> Result<String, Str
         if let Some(js) = req_js {
             builder = builder.initialization_script(js);
         }
+        // Рантайм расширений: контент-скрипты по маскам, API по правам.
+        // all_frames=true → во все фреймы, иначе только верхний.
+        for cs in &ext_scripts {
+            let js = extension_script_wrapper(cs);
+            if cs.all_frames {
+                builder = builder.initialization_script_for_all_frames(js);
+            } else {
+                builder = builder.initialization_script(js);
+            }
+        }
         window
             .add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;
-        append_backend_log(&format!("[open] {label_for_main} ok"));
+        // Фоновая вкладка: сразу уводим вебвью за экран — позиция add_child
+        // = rect текущей вкладки, и до первого relayout/активации фон
+        // висел бы ПОВЕРХ активной страницы.
+        if !focus {
+            if let Some(wv) = app_for_main.get_webview(&label_for_main) {
+                let _ = wv.set_bounds(HIDDEN_RECT);
+            }
+        }
+        append_backend_log(&format!(
+            "[open] {label_for_main} ok exts={} bg={}",
+            ext_scripts.len(),
+            !focus
+        ));
         Ok(())
     })??;
 
     {
         let tabs = app.state::<PageTabs>();
         let mut guard = tabs.tabs.lock().unwrap();
-        guard.push(PageTab { id: id.clone(), label: label.clone(), url: url.clone(), visible: true });
+        // Background tab: registered hidden — relayout (не вызывали) и так
+        // не покажет его; при первом page_activate получит свой rect.
+        guard.push(PageTab {
+            id: id.clone(),
+            label: label.clone(),
+            url: url.clone(),
+            visible: focus,
+        });
     }
 
     invoke_record_visit(&app, &url);

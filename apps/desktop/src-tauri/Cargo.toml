@@ -1,6 +1,6 @@
 [package]
 name = "apb-desktop"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 rust-version = "1.75"
 
@@ -9,6 +9,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "unstable"] }
+# Официальный плагин: второй запуск не плодит второй браузер на том же
+# user-data folder (это ломало WebView2 и сессию), а будит существующее окно.
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "=1.10.0", features = ["v4", "serde"] }

@@ -625,7 +625,10 @@ window.apbSplitExit = apbSplitExit;
 
 // Точка входа для бэкенда (shell_open_tab): target=_blank-ссылки и window.open
 // из вкладок открываются новой вкладкой здесь, в шелле.
-window.__apbOpenTab = (url) => createTab(url);
+// Правило юзера (инверсно к Chrome): ЛКМ по target=_blank и попапы
+// (window.open) → focus=true, СРАЗУ перейти; ПКМ «Открыть в новой вкладке»
+// и Ctrl+клик → фоном, не уходить со страницы.
+window.__apbOpenTab = (url, focus) => createTab(url, null, { background: !focus });
 
 // События от бэкенда о жизни вкладок-вебвью:
 try {
@@ -668,7 +671,8 @@ try {
   // запретил ОС-окно и просит открыть ссылку вкладкой.
   ev.listen("page-open-tab", (e) => {
     const u = e.payload && e.payload.url;
-    if (u) window.__apbOpenTab(u);
+    const f = !!(e.payload && e.payload.focus);
+    if (u) window.__apbOpenTab(u, f);
   });
 } catch { /* event API недоступен — живём как раньше */ }
 
@@ -723,19 +727,25 @@ window.addEventListener("resize", () => {
 async function createTab(url, label, opts = {}) {
   splitExitSilent();
   try {
-    const id = await invokeV2("page_open", { url });
+    // Фоновая вкладка: создаётся скрытой, ТЕКУЩАЯ вкладка остаётся
+    // активной (омнибокс/главный экран не трогаем) — как Ctrl+клик в
+    // обычных браузерах.
+    const cmd = opts.background ? "page_open_bg" : "page_open";
+    const id = await invokeV2(cmd, { url });
     const t = { id, url, label: smartTitle(url, label), hist: [url], hi: 0 };
     // Новые вкладки по умолчанию встают В НАЧАЛО списка (сверху).
     // opts.append — для восстановления сессий/воркспейсов, чтобы сохранить
     // исходный порядок.
     if (opts.append) tabs.push(t); else tabs.unshift(t);
-    activeTabId = id;
-    internalOpen = null;
-    internalHost.classList.add("hidden");
-    updateAddressBar(url, t.label);
-    showEmptyState(false);
+    if (!opts.background) {
+      activeTabId = id;
+      internalOpen = null;
+      internalHost.classList.add("hidden");
+      updateAddressBar(url, t.label);
+      showEmptyState(false);
+    }
     renderTabStrip();
-    syncPageLayout(true);
+    if (!opts.background) syncPageLayout(true);
     scheduleSessionSave();
     return id;
   } catch (e) {

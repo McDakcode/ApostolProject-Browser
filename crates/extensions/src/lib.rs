@@ -105,6 +105,15 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
     /// Relative path of the entry script/asset inside the package.
     pub entry_point: String,
+    /// URL match patterns for the content-script runtime (§12 "content
+    /// scripts by masks"). Empty = the entry point never runs. Examples:
+    /// `https://*/*`, `https://*.example.com/*`, `*://example.com/*`.
+    #[serde(default)]
+    pub matches: Vec<String>,
+    /// Run the content script in every iframe as well (all_frames=false
+    /// by default, top frame only — same spirit as WebExtension manifests).
+    #[serde(default)]
+    pub all_frames: bool,
 }
 
 impl Manifest {
@@ -137,7 +146,39 @@ impl Manifest {
                 "manifest.entry_point не может выходить за пределы пакета".into(),
             ));
         }
+        for m in &self.matches {
+            match_pattern::compile(m)
+                .map_err(|e| ExtensionError::Invalid(format!("manifest.matches: {e}")))?;
+        }
         Ok(())
+    }
+
+    /// True when this extension's content script applies to `url`
+    /// (any of its match patterns matches; an empty `matches` list never
+    /// matches anything — the script only runs on granted sites).
+    pub fn matches_url(&self, url: &str) -> bool {
+        self.matches.iter().any(|p| match_pattern::matches(p, url))
+    }
+
+    /// Read the entry-point script from the installed package directory.
+    pub fn read_entry_script(&self, install_dir: &Path) -> Result<String> {
+        if self.entry_point.is_empty() {
+            return Err(ExtensionError::Invalid("entry_point пуст".into()));
+        }
+        if self.entry_point.split(['/', '\\']).any(|seg| seg == "..") {
+            return Err(ExtensionError::Invalid(
+                "entry_point не может выходить за пределы пакета".into(),
+            ));
+        }
+        let path = install_dir.join(&self.entry_point);
+        if !path.is_file() {
+            return Err(ExtensionError::Invalid(format!(
+                "файл entry_point не найден: {}",
+                path.display()
+            )));
+        }
+        std::fs::read_to_string(&path)
+            .map_err(|e| ExtensionError::Invalid(format!("{}: {e}", path.display())))
     }
 
 // Made by MrDuck && Ox-Alpha
@@ -146,6 +187,134 @@ impl Manifest {
         let json = std::fs::read_to_string(&path)
             .map_err(|e| ExtensionError::Invalid(format!("{}: {e}", path.display())))?;
         Self::parse(&json)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Match patterns (WebExtension-подобный упрощённый формат)
+// ---------------------------------------------------------------------------
+
+/// `<scheme>://<host><path>`: scheme = `http|https|*` (звёздочка = оба),
+/// host = `*` (любой) | `*.example.com` (домен + поддомены) | точный хост,
+/// path = `/...` с глобами `*` (например `/*`, `/foo/*bar`).
+/// Используется манифестом (`matches`) и инжект-рантамом в cmd/pages.rs.
+pub(crate) mod match_pattern {
+    use super::ExtensionError;
+
+    struct Pat {
+        scheme_wild: bool,
+        scheme: String,
+        host_wild: bool,
+        host_suffix: Option<String>,
+        host_exact: String,
+        path: String,
+    }
+
+    fn parse(pattern: &str) -> Option<Pat> {
+        let p = pattern.trim();
+        if p.contains(char::is_whitespace) || p.contains("..") {
+            return None;
+        }
+        let (scheme, rest) = p.split_once("://")?;
+        if scheme != "http" && scheme != "https" && scheme != "*" {
+            return None;
+        }
+        let (host, path) = match rest.find('/') {
+            Some(i) => (&rest[..i], &rest[i..]),
+            None => return None, // path обязателен, хотя бы «/»
+        };
+        if host.is_empty() || path.is_empty() {
+            return None;
+        }
+        let (host_wild, host_suffix, host_exact) = if host == "*" {
+            (true, None, String::new())
+        } else if let Some(sfx) = host.strip_prefix("*.") {
+            if sfx.is_empty() || sfx.contains('*') {
+                return None;
+            }
+            (false, Some(sfx.to_string()), sfx.to_string())
+        } else if host.contains('*') {
+            // звёздочка в хосте разрешена только как префикс «*.»
+            return None;
+        } else {
+            (false, None, host.to_string())
+        };
+        Some(Pat {
+            scheme_wild: scheme == "*",
+            scheme: scheme.to_string(),
+            host_wild,
+            host_suffix,
+            host_exact,
+            path: path.to_string(),
+        })
+    }
+
+    /// Синтаксическая проверка (вызывается из Manifest::validate).
+    pub fn compile(pattern: &str) -> Result<(), ExtensionError> {
+        if parse(pattern).is_none() {
+            return Err(ExtensionError::Invalid(format!(
+                "«{pattern}» — ожидается <scheme>://<host>/<path>, scheme = http|https|*, host = *|*.example.com|example.com"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Проверить URL против паттерна. URL перед разбором НЕ нормализуется —
+    /// зови с тем, что даёт движок (location.href и т.п.).
+    pub fn matches(pattern: &str, url: &str) -> bool {
+        let Some(p) = parse(pattern) else { return false };
+        let Some((scheme, rest)) = url.split_once("://") else { return false };
+        if p.scheme_wild {
+            if scheme != "http" && scheme != "https" {
+                return false;
+            }
+        } else if p.scheme != scheme {
+            return false;
+        }
+        let (host, path) = match rest.find('/') {
+            Some(i) => (&rest[..i], &rest[i..]),
+            None => (rest, "/"),
+        };
+        if !p.host_wild {
+            if let Some(sfx) = &p.host_suffix {
+                if host != sfx && !host.ends_with(&format!(".{sfx}")) {
+                    return false;
+                }
+            } else if host != p.host_exact {
+                return false;
+            }
+        }
+        glob_match(&p.path, path)
+    }
+
+    /// Простой глоб по `*`: части между звёздочками идут по порядку, первая —
+    /// префикс, последняя — суффикс (семантика WebExtension path match).
+    fn glob_match(glob: &str, mut s: &str) -> bool {
+        let parts: Vec<&str> = glob.split('*').collect();
+        if parts.len() == 1 {
+            return glob == s;
+        }
+        let first = parts[0];
+        if !s.starts_with(first) {
+            return false;
+        }
+        s = &s[first.len()..];
+        let last = parts[parts.len() - 1];
+        if s.len() < last.len() {
+            return false;
+        }
+        let mid = &s[..s.len() - last.len()];
+        let mut search = mid;
+        for part in &parts[1..parts.len() - 1] {
+            if part.is_empty() {
+                continue;
+            }
+            match search.find(part) {
+                Some(i) => search = &search[i + part.len()..],
+                None => return false,
+            }
+        }
+        true
     }
 }
 
@@ -183,6 +352,20 @@ pub struct SandboxPolicy {
     pub extension_id: String,
     pub capabilities: Vec<String>,
     pub denied_by_default: Vec<&'static str>,
+}
+
+/// One injectable content script produced by `ExtensionRegistry::
+/// content_scripts_for` — the runtime payload consumed by cmd/pages.rs.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ContentScript {
+    pub extension_id: String,
+    pub extension_name: String,
+    /// Run in every frame (top frame only when false — the default).
+    pub all_frames: bool,
+    pub code: String,
+    /// Permissions approved for the active profile — the runtime exposes
+    /// only the matching part of the in-page `apb` API surface.
+    pub granted: Vec<Permission>,
 }
 
 pub struct ExtensionRegistry {
@@ -332,6 +515,42 @@ impl ExtensionRegistry {
 
     pub fn grant_for(&self, profile: Uuid, id: &str) -> Option<&Grant> {
         self.grants.get(&(profile, id.to_string()))
+    }
+
+    /// Content scripts to inject into a page (the extension runtime,
+    /// §12 "content scripts by masks"): (extension_id, manifest_name,
+    /// script source, approved permissions) for every enabled extension
+    /// whose manifest matches `url` AND whose granted permissions actually
+    /// allow reading the page (current_tab, or all_websites approved as
+    /// dangerous). Scripts with no page-reading permission never run.
+    pub fn content_scripts_for(&self, profile: Uuid, url: &str) -> Vec<ContentScript> {
+        self.installed
+            .values()
+            .filter(|rec| rec.enabled_globally)
+            .filter(|rec| rec.manifest.matches_url(url))
+            .filter(|rec| {
+                self.can(profile, &rec.manifest.id, Permission::CurrentTab)
+                    || self.can(profile, &rec.manifest.id, Permission::AllWebsites)
+            })
+            .filter_map(|rec| {
+                rec.manifest
+                    .read_entry_script(&rec.install_dir)
+                    .ok()
+                    .map(|code| ContentScript {
+                        extension_id: rec.manifest.id.clone(),
+                        extension_name: rec.manifest.name.clone(),
+                        all_frames: rec.manifest.all_frames,
+                        code,
+                        granted: rec
+                            .manifest
+                            .permissions
+                            .iter()
+                            .copied()
+                            .filter(|p| self.can(profile, &rec.manifest.id, *p))
+                            .collect(),
+                    })
+            })
+            .collect()
     }
 
     /// Central capability check used by every extension-facing API surface.
@@ -536,6 +755,105 @@ mod tests {
         let mut reg = ExtensionRegistry::open(&tmp).unwrap();
         reg.install(&src).unwrap();
         assert!(reg.install(&src).is_err());
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn match_patterns_parse_and_match() {
+        for good in [
+            "http://*/*",
+            "https://*.example.com/*",
+            "*://example.com/foo*bar",
+            "https://host/path/exact",
+        ] {
+            match_pattern::compile(good).unwrap();
+        }
+        for bad in [
+            "ftp://example.com/*",     // scheme не поддержан
+            "https://example.com",     // нет path
+            "https://exa*mple.com/*",  // * в середине хоста
+            "https://example.com/../x", // path traversal
+            "https:// /",              // whitespace
+        ] {
+            assert!(match_pattern::compile(bad).is_err(), "ожидал reject: {bad}");
+        }
+        assert!(match_pattern::matches("http://*/*", "http://any.host/page?q=1"));
+        assert!(!match_pattern::matches("http://*/*", "https://any.host/page"));
+        assert!(match_pattern::matches("*://example.com/*", "https://example.com/"));
+        assert!(match_pattern::matches("https://*.example.com/*", "https://a.example.com/x"));
+        assert!(match_pattern::matches("https://*.example.com/*", "https://example.com/x"));
+        assert!(!match_pattern::matches("https://*.example.com/*", "https://badexample.com/x"));
+        assert!(!match_pattern::matches("https://*.example.com/*", "https://notexample.org/x"));
+        assert!(match_pattern::matches("*://site.com/articles/*", "https://site.com/articles/2026/rust"));
+        assert!(!match_pattern::matches("*://site.com/articles/*", "https://site.com/news/1"));
+        assert!(match_pattern::matches("https://h.exact/path", "https://h.exact/path"));
+        assert!(!match_pattern::matches("https://h.exact/path", "https://h.exact/path2"));
+    }
+
+    #[test]
+    fn manifest_matches_field_validated_and_used() {
+        let tmp = std::env::temp_dir().join(format!("apb-ext-match-{}", Uuid::new_v4()));
+        let dir = tmp.join("src-reader");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("manifest.json"),
+            r#"{"id":"reader","name":"Reader","version":"1.0.0","api_version":1,
+                "entry_point":"main.js","permissions":["current_tab"],
+                "matches":["https://*.example.com/*"]}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("main.js"), "// content script body").unwrap();
+        let m = Manifest::load_from_dir(&dir).unwrap();
+        assert_eq!(m.matches, vec!["https://*.example.com/*".to_string()]);
+        assert!(m.matches_url("https://a.example.com/page"));
+        assert!(!m.matches_url("https://other.org/page"));
+
+        // Невалидный паттерн в matches = reject на установке.
+        std::fs::write(
+            dir.join("manifest.json"),
+            r#"{"id":"reader","name":"Reader","version":"1.0.0","api_version":1,
+                "entry_point":"main.js","permissions":["current_tab"],
+                "matches":["https://*bad"]}"#,
+        )
+        .unwrap();
+        assert!(Manifest::load_from_dir(&dir).is_err());
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn content_scripts_runtime_respects_grants_and_masks() {
+        let tmp = std::env::temp_dir().join(format!("apb-ext-run-{}", Uuid::new_v4()));
+        let dir = tmp.join("src-runner");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("manifest.json"),
+            r#"{"id":"runner","name":"Runner","version":"1.0.0","api_version":1,
+                "entry_point":"main.js","permissions":["current_tab"],
+                "matches":["https://*.example.com/*"]}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("main.js"), "console.log('ran')").unwrap();
+        let mut reg = ExtensionRegistry::open(&tmp).unwrap();
+        reg.install(&dir).unwrap();
+        let profile = Uuid::new_v4();
+
+        // Маска подходит, но прав нет → скрипт НЕ инжектится.
+        assert!(reg.content_scripts_for(profile, "https://a.example.com/x").is_empty());
+
+        // Право выдано → инжектится с кодом и списком прав.
+        reg.grant_permissions(profile, "runner", &[Permission::CurrentTab]).unwrap();
+        let scripts = reg.content_scripts_for(profile, "https://a.example.com/x");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0].extension_id, "runner");
+        assert_eq!(scripts[0].code, "console.log('ran')");
+        assert_eq!(scripts[0].granted, vec![Permission::CurrentTab]);
+
+        // URL вне маски → не инжектится даже с правами.
+        assert!(reg.content_scripts_for(profile, "https://elsewhere.org/x").is_empty());
+
+        // Отключение расширения глобально глушит инжект.
+        reg.set_enabled("runner", false).unwrap();
+        assert!(reg.content_scripts_for(profile, "https://a.example.com/x").is_empty());
         std::fs::remove_dir_all(&tmp).ok();
     }
 }

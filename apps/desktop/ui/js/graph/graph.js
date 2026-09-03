@@ -1727,11 +1727,93 @@
     document.getElementById("graphHelpClose")?.addEventListener("click", () => {
       if (ghPanel) ghPanel.classList.add("hidden");
     });
-    // ⬇ PNG-экспорт полотна графа в Загрузки
+    // ⬇ PNG-экспорт полотна графа в Загрузки.
+    // #graphCanvas рисует узлы/рёбра/провода — DOM-блоки (#blockLayer
+    // .board-item) в toDataURL не попадают. «Как скрин»: каждый блок
+    // клонируется, стили инлайнятся из getComputedStyle (в SVG-картинке
+    // внешние CSS не работают), и вся сборка сериализуется в
+    // <svg><foreignObject> → Image → drawImage на копию канваса.
+    // data:-картинки (из заметок) рендерятся настоящими; внешние http(s)
+    // внутри SVG-картинки не загружаются вовсе — вместо них рамка-заглушка.
+    // Чекбоксы задач заменяются на глифы ☑/☐: form-controls в SVG-картинке
+    // не надёжны. UI-мусор (✕, ресайз, точка-ручка) со скрина убирается.
+    function snapshotBlocksSvg() {
+      const dpr2 = dpr || 1;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;overflow:hidden;";
+      for (const it of G.items) {
+        const el = blockEls.get(it.id);
+        if (!el) continue;
+        const clone = el.cloneNode(true);
+        // 1) переносим ВЫЧИСЛЕННЫЕ стили каждого элемента (порядок веток
+        //    одинаковый у оригинала и клона — пока ничего не заменяли)
+        const srcEls = [el, ...el.querySelectorAll("*")];
+        const dstEls = [clone, ...clone.querySelectorAll("*")];
+        for (let i = 0; i < srcEls.length && i < dstEls.length; i++) {
+          try { dstEls[i].setAttribute("style", getComputedStyle(srcEls[i]).cssText); } catch {}
+        }
+        // 2) позиция/масштаб — те же, что в syncBlocks
+        const p = toScreen(it.x, it.y);
+        const s = itemSize(it);
+        clone.style.position = "absolute";
+        clone.style.left = "0";
+        clone.style.top = "0";
+        clone.style.width = s.w + "px";
+        clone.style.height = s.h + "px";
+        clone.style.transformOrigin = "0 0";
+        clone.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) scale(${view.zoom.toFixed(4)})`;
+        // 3) замены, меняющие структуру (после копирования стилей)
+        clone.querySelectorAll(".bi-x, .bi-resize, .bi-ghandle").forEach((n) => n.remove());
+        clone.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+          const sp = document.createElement("span");
+          sp.textContent = cb.checked ? "☑" : "☐";
+          sp.style.cssText = "font-size:14px;line-height:1;margin-right:7px;color:var(--accent,#7fb0ff);display:inline-block;";
+          cb.replaceWith(sp);
+        });
+        clone.querySelectorAll("img").forEach((im) => {
+          const src = im.getAttribute("src") || "";
+          if (!src.startsWith("data:")) {
+            const ph = document.createElement("div");
+            ph.textContent = "🖼 " + (src.slice(0, 60) || "картинка");
+            ph.style.cssText = "padding:8px 10px;font-size:12px;border:1px dashed #8a8f98;border-radius:8px;color:#a6a6b0;min-height:60px;box-sizing:border-box;margin:8px;";
+            im.replaceWith(ph);
+          }
+        });
+        // contentEditable не нужен в статичной картинке
+        clone.querySelectorAll("[contenteditable]").forEach((n) => n.removeAttribute("contenteditable"));
+        wrap.appendChild(clone);
+      }
+      if (!wrap.children.length) return null;
+      // SVG рендерится в dpr-размере, потом drawImage кладёт его 1:1 в
+      // устройство-пиксели → скрин не мылится на HiDPI.
+      const inner =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(CW * dpr2)}" height="${Math.round(CH * dpr2)}">` +
+        `<foreignObject x="0" y="0" width="${Math.round(CW * dpr2)}" height="${Math.round(CH * dpr2)}">` +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:${CW}px;height:${CH}px;overflow:hidden;transform-origin:0 0;transform:scale(${dpr2});">` +
+        wrap.innerHTML +
+        `</div></foreignObject></svg>`;
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(inner);
+    }
+
     document.getElementById("graphExportPng")?.addEventListener("click", async () => {
       try {
         const cv = document.getElementById("graphCanvas");
-        const data = cv.toDataURL("image/png").split(",")[1];
+        const out = document.createElement("canvas");
+        out.width = cv.width; out.height = cv.height;
+        const c2 = out.getContext("2d");
+        c2.drawImage(cv, 0, 0);
+        const svgUrl = snapshotBlocksSvg();
+        if (svgUrl) {
+          const img = new Image();
+          await new Promise((res, rej) => {
+            img.onload = res;
+            img.onerror = () => rej(new Error("не удалось отрисовать блоки (SVG-снапшот)"));
+            img.src = svgUrl;
+          });
+          c2.setTransform(dpr, 0, 0, dpr, 0, 0);
+          c2.drawImage(img, 0, 0, CW, CH);
+        }
+        const data = out.toDataURL("image/png").split(",")[1];
         const p = await invoke("save_image_file", { name: "graph.png", dataBase64: data });
         toast("Граф сохранён: " + p, "ok");
       } catch (err) {

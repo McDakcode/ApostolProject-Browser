@@ -32,6 +32,15 @@ use state::AppState;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+/// Frontend debug logger (ui/js/core/debug-log.js), compiled into the
+/// binary and injected as an initialization script of the shell window in
+/// DEBUG builds only. Initialization scripts run before any document
+/// script, which the logger requires to wrap invoke in time (it must beat
+/// boot-core.js to the reference). In release builds the logger does not
+/// exist at all — index.html no longer references it.
+#[cfg(debug_assertions)]
+const DEBUG_FRONTEND_JS: &str = include_str!("../../ui/js/core/debug-log.js");
+
 fn main() {
     // Privacy engine data plane must exist BEFORE the first webview: the
     // local filtering proxy port goes into the shared browser arguments.
@@ -39,6 +48,18 @@ fn main() {
     let proxy_port = proxy::spawn(filter.clone());
 
     tauri::Builder::default()
+        // Единый экземпляр приложения: повторный запуск exe НЕ плодит второй
+        // браузер на том же user-data folder (два процесса WebView2 ломают
+        // друг друга), а выводит существующее окно на передний план.
+        // Регистрируется самым первым плагином — до любых window-событий.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(win) = app.get_webview_window("shell") {
+                let _ = win.unminimize();
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .manage(filter)
         .setup(move |app| {
             let data_dir = app
@@ -49,6 +70,8 @@ fn main() {
             app.manage(Mutex::new(bootstrapped));
             app.manage(PageTabs::default());
             app.manage(DownloadsLog::default());
+            // Видимая структура данных юзера (settings.json/themes/README):
+            cmd::userfiles::ensure_visible_layout(app.handle());
 
             // Browser args are finalized here — after bootstrap, before the
             // shell window (and any tab webview) exists. DNS is deliberately
@@ -62,14 +85,25 @@ fn main() {
             // it shares the exact same browser arguments as every tab —
             // WebView2 requires identical environment options per user-data
             // folder, and the tabs get the proxy flag.
-            tauri::WebviewWindowBuilder::new(app, "shell", tauri::WebviewUrl::App("index.html".into()))
-                .title("APB — ApostolProject Browser")
-                .inner_size(1280.0, 820.0)
-                .min_inner_size(900.0, 560.0)
-                .resizable(true)
-                .decorations(false)
-                .maximized(true)
-                .additional_browser_args(liveprivacy::browser_args())
+            // `mut` нужен только debug-сборке (инжект DEBUG_FRONTEND_JS ниже).
+            #[allow(unused_mut)]
+            let mut shell_builder =
+                tauri::WebviewWindowBuilder::new(app, "shell", tauri::WebviewUrl::App("index.html".into()))
+                    .title("APB — ApostolProject Browser")
+                    .inner_size(1280.0, 820.0)
+                    .min_inner_size(900.0, 560.0)
+                    .resizable(true)
+                    .decorations(false)
+                    .maximized(true)
+                    .additional_browser_args(liveprivacy::browser_args());
+            // Debug-логгер — только в debug-сборке (см. DEBUG_FRONTEND_JS).
+            // initialization_script выполняется до скриптов index.html —
+            // логгер успеет обернуть invoke до захвата ссылки в boot-core.
+            #[cfg(debug_assertions)]
+            {
+                shell_builder = shell_builder.initialization_script(DEBUG_FRONTEND_JS);
+            }
+            shell_builder
                 .build()
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
             // DWM-анимации появления/сворачивания окна явно включены —
@@ -161,6 +195,7 @@ fn main() {
             ext_set_enabled,
             ext_sandbox_policy,
             page_open,
+            page_open_bg,
             page_url_push,
             page_diag,
             page_navigate,
@@ -173,7 +208,9 @@ fn main() {
             open_in_system,
             app_version,
             update_check,
-            update_install
+            update_install,
+            settings_theme_save,
+            settings_search_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running APB");

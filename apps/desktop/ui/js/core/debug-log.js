@@ -1,19 +1,26 @@
 // Made by MrDuck
 // ============================================================
-// ui/js/core/debug-log.js — DEMO DEBUG LOGGER (загружать ПЕРВЫМ!)
+// ui/js/core/debug-log.js — DEBUG-ЛОГГЕР (только debug-сборки!)
+//
+// Подключение: НЕ через index.html. Бэкенд вшивает текст файла в бинарник
+// (include_str!, см. main.rs DEBUG_FRONTEND_JS) и инжектит его как
+// initialization_script окна shell — он выполняется ДО любого скрипта
+// документа. В release-сборке этого кода в бинарнике нет вообще
+// (cfg(debug_assertions) в cmd/debug.rs + main.rs).
 //
 // Ловит и складывает в файл всё, что нужно для посмертного анализа:
 //   · необработанные ошибки JS (window error) + стеки
 //   · unhandled promise rejections
 //   · console.error / console.warn
 //   · упавшие и медленные invoke-команды (обёртка ставится ДО того,
-//     как boot-core захватит ссылку на invoke)
+//     как boot-core захватит ссылку на invoke; как init-скрипт мы можем
+//     стартовать раньше появления window.__TAURI__ — тогда повтор на
+//     DOMContentLoaded)
 //   · жизненный цикл графа (reloadGraphData / flushGraphSaves)
 //
 // Буфер в памяти → сброс каждые 2с / при скрытии окна / перед выгрузкой
 // через команду debug_log_append →
-// %APPDATA%/dev.apb.browser/logs/shell-debug.log (ротация ~2 МБ).
-// ПЕРЕД РЕЛИЗОМ ЭТОТ ФАЙЛ ВЫКИНУТЬ ИЗ index.html.
+// workspace/logs/shell-debug.log (ротация ~2 МБ → .old).
 // Наружу: window.__apbLog(level, msg), window.__apbDump().
 // ============================================================
 (function () {
@@ -64,14 +71,23 @@
     };
   });
 
-  // ---------------- invoke-обёртка (ДО boot-core!) ----------------
+  // ---------------- invoke-обёртка ----------------
+  // Как initialization_script мы стартуем до скриптов документа: глобала
+  // __TAURI__ может ещё не быть. Оборачивание — в функцию с повтором на
+  // DOMContentLoaded (до этого момента boot-core уже захватит invoke —
+  // тогда упавшие invoke просто не логируются, это деградация, не поломка).
   // __TAURI__.core.invoke может быть read-only — пробуем каскад:
   //   1) прямая замена свойства  2) defineProperty на core
   //   3) подмена всего объекта core клоном с нашей обёрткой
-  try {
-    const tauri = window.__TAURI__;
-    const orig = tauri && tauri.core && tauri.core.invoke;
-    if (typeof orig === "function" && !orig.__apbWrapped) {
+  function tryWrapInvoke() {
+    try {
+      const tauri = window.__TAURI__;
+      const orig = tauri && tauri.core && tauri.core.invoke;
+      if (typeof orig !== "function") {
+        push("WARN", "__TAURI__.core.invoke ещё нет — повтор на DOMContentLoaded");
+        return false;
+      }
+      if (orig.__apbWrapped) return true; // уже обёрнут (двойная загрузка)
       const wrapped = async function (cmd, args) {
         const t0 = performance.now();
         try {
@@ -108,11 +124,14 @@
       }
       push(ok ? "INFO" : "WARN",
         ok ? "invoke обёрнут логгером" : "invoke обернуть НЕ удалось — упавшие invoke не логируются");
-    } else {
-      push("WARN", "__TAURI__.core.invoke не найден при загрузке debug-log.js");
+      return ok;
+    } catch (e) {
+      push("ERROR", "не удалось обернуть invoke: " + e);
+      return false;
     }
-  } catch (e) {
-    push("ERROR", "не удалось обернуть invoke: " + e);
+  }
+  if (!tryWrapInvoke()) {
+    document.addEventListener("DOMContentLoaded", () => { tryWrapInvoke(); });
   }
 
   // ---------------- жизненный цикл графа ----------------
