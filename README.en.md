@@ -4,7 +4,7 @@
 
 A privacy-focused desktop browser that combines **browser + workspace + knowledge base + AI** in one app. Not Electron — built on **Tauri 2 / Rust** with native WebView2 tabs.
 
-> Early development (v0.1.0), Windows only for now.
+
 
 ## Features
 
