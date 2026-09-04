@@ -4,7 +4,7 @@
 
 Ein datenschutzorientierter Desktop-Browser, der **Browser + Arbeitsbereich + Wissensbasis + KI** in einer einzigen App vereint. Kein Electron — gebaut mit **Tauri 2 / Rust** und nativen WebView2-Tabs.
 
-> Frühe Entwicklungsphase (v0.1.0), derzeit nur Windows.
+
 
 ## Funktionen
 
