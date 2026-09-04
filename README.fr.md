@@ -4,7 +4,7 @@
 
 Un navigateur de bureau axé sur la confidentialité qui réunit **navigateur + espace de travail + base de connaissances + IA** dans une seule application. Pas d'Electron — construit avec **Tauri 2 / Rust** et des onglets WebView2 natifs.
 
-> Début de développement (v0.1.0), Windows uniquement pour l'instant.
+
 
 ## Fonctionnalités
 
