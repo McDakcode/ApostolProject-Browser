@@ -14,9 +14,23 @@ pub(crate) fn sniff_image_mime(bytes: &[u8]) -> Option<&'static str> {
         Some("image/webp")
     } else if bytes.starts_with(b"BM") {
         Some("image/bmp")
+    } else if looks_like_svg(bytes) {
+        Some("image/svg+xml")
     } else {
         None
     }
+}
+
+/// SVG — это текст, не magic bytes: файл может начинаться с `<?xml…?>`,
+/// BOM или сразу `<svg`. Ищем тег <svg> в первых 1024 байтах
+/// (регистронезависимо) — без этого заметки с SVG-картинками
+/// отбраковывались как «не изображение» и рисовались красной рамкой.
+fn looks_like_svg(bytes: &[u8]) -> bool {
+    let head = &bytes[..bytes.len().min(1024)];
+    let s = String::from_utf8_lossy(head).to_lowercase();
+    if s.contains("<svg") { return true; }
+    // CSV-обманки/обычный текст с <svg внутри — нет: требуем <svg близко к началу
+    s.find('<').map(|i| s[i..].starts_with("<?xml") && s.contains("<svg")).unwrap_or(false)
 }
 
 /// Percent-decode `%XX` sequences into a UTF-8 string (inverse of
@@ -114,3 +128,25 @@ pub(crate) fn decode_base64(input: &str) -> Option<Vec<u8>> {
 // ---------------------------------------------------------------------
 
 // Made by MrDuck
+#[cfg(test)]
+mod svg_sniff_tests {
+    use super::*;
+
+    #[test]
+    fn svg_plain_head() {
+        assert_eq!(sniff_image_mime(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"), Some("image/svg+xml"));
+    }
+    #[test]
+    fn svg_with_xml_prolog() {
+        assert_eq!(sniff_image_mime(b"<?xml version=\"1.0\"?>\n<svg viewBox=\"0 0 1 1\">"), Some("image/svg+xml"));
+    }
+    #[test]
+    fn svg_case_insensitive() {
+        assert_eq!(sniff_image_mime(b"<SVG width=\"10\">"), Some("image/svg+xml"));
+    }
+    #[test]
+    fn plain_text_not_svg() {
+        assert_eq!(sniff_image_mime(b"hello world, this is a text file"), None);
+        assert_eq!(sniff_image_mime(b"<html><body>no svg here</body></html>"), None);
+    }
+}

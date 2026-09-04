@@ -1595,7 +1595,11 @@
   }
 
   function fileToDataUrl(file) {
-    if (file.type === "image/gif") {
+    // GIF и SVG — НАПРЯМУЮ как data:URL: канвас-растеризация для GIF
+    // убивала анимацию, а для SVG ломалась (нет width/height у корня,
+    // прозрачный фон чернился при JPEG-кодировании).
+    if (file.type === "image/gif" || file.type === "image/svg+xml" ||
+        /\.svg$/i.test(file.name)) {
       return new Promise((res, rej) => {
         const r = new FileReader();
         r.onload = () => res(r.result); r.onerror = rej;
@@ -1735,12 +1739,70 @@
     // <svg><foreignObject> → Image → drawImage на копию канваса.
     // data:-картинки (из заметок) рендерятся настоящими; внешние http(s)
     // внутри SVG-картинки не загружаются вовсе — вместо них рамка-заглушка.
+    // ВЛОЖЕННЫЕ data:image/svg+xml Chromium внутри SVG-картинки тоже не
+    // грузит (SVG-as-image: под-ресурсы ограничены) — растрируем их в PNG
+    // заранее (svgToPngDataUrl); если не растрировалось — рамка-заглушка.
     // Чекбоксы задач заменяются на глифы ☑/☐: form-controls в SVG-картинке
     // не надёжны. UI-мусор (✕, ресайз, точка-ручка) со скрина убирается.
-    function snapshotBlocksSvg() {
+    const imgPlaceholder = (src) => {
+      const ph = document.createElement("div");
+      ph.textContent = "🖼 " + (String(src).slice(0, 60) || "картинка");
+      ph.style.cssText = "padding:8px 10px;font-size:12px;border:1px dashed #8a8f98;border-radius:8px;color:#a6a6b0;min-height:60px;box-sizing:border-box;margin:8px;";
+      return ph;
+    };
+    // ГРАБЛЯ 30 (x3): снапшот блоков в SVG-картинку.
+    // 1) В Chromium getComputedStyle().cssText для computed-стилей = ""
+    //    (пустая строка) — стили переносим перебором свойств.
+    // 2) Position-свойства (left/top/right/bottom/inset/transform…)
+    //    НЕ копируем: CSSOM сливает их в шорткат `inset`, который при
+    //    репарсинге SVG-картинки применяется только правым/нижним краем
+    //    (left/top вырождаются в auto) — блоки уезжают на исходные
+    //    позиции и дублируют transform. Позицию задаём явно longhand-ами.
+    // 3) backdrop-filter в статичной картинке всё равно не работает.
+    const SNAP_SKIP = new Set([
+      "position", "left", "top", "right", "bottom", "inset",
+      "transform", "translate", "rotate", "scale", "backdrop-filter"
+    ]);
+    function snapshotStyleText(el) {
+      const cs = getComputedStyle(el);
+      const out = [];
+      for (let i = 0; i < cs.length; i++) {
+        const p = cs.item(i);
+        if (!p || p.startsWith("--") || SNAP_SKIP.has(p)) continue;
+        const v = cs.getPropertyValue(p);
+        if (v) out.push(p + ":" + v + ";");
+      }
+      return out.join("");
+    }
+    function svgToPngDataUrl(src, fw, fh) {
+      return new Promise((res) => {
+        const im = new Image();
+        im.onload = () => {
+          const w = im.naturalWidth || fw || 300;
+          const h = im.naturalHeight || fh || 200;
+          const sc = Math.min(1, 1200 / Math.max(w, h));
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(w * sc));
+          c.height = Math.max(1, Math.round(h * sc));
+          try {
+            c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+            res(c.toDataURL("image/png"));
+          } catch { res(null); }
+        };
+        im.onerror = () => res(null);
+        im.src = src;
+      });
+    }
+    // stripAll: режим-страховка — ВСЕ картинки в заглушки (второй заход,
+    // если первый снапшот не отрисовался вообще).
+    async function snapshotBlocksSvg(stripAll = false) {
       const dpr2 = dpr || 1;
+      // wrap обязан иметь ЯВНЫЕ размеры: все клоны absolute → без height
+      // wrap = 0px, и содержимое клипается в ноль («видны только линии»).
+      // Клиппинг делает внешний xhtml-div (у него есть width/height).
       const wrap = document.createElement("div");
-      wrap.style.cssText = "position:relative;overflow:hidden;";
+      wrap.style.cssText = "position:relative;width:" + CW + "px;height:" + CH + "px;";
+      const svgImgs = [];
       for (const it of G.items) {
         const el = blockEls.get(it.id);
         if (!el) continue;
@@ -1750,7 +1812,7 @@
         const srcEls = [el, ...el.querySelectorAll("*")];
         const dstEls = [clone, ...clone.querySelectorAll("*")];
         for (let i = 0; i < srcEls.length && i < dstEls.length; i++) {
-          try { dstEls[i].setAttribute("style", getComputedStyle(srcEls[i]).cssText); } catch {}
+          try { dstEls[i].setAttribute("style", snapshotStyleText(srcEls[i])); } catch {}
         }
         // 2) позиция/масштаб — те же, что в syncBlocks
         const p = toScreen(it.x, it.y);
@@ -1772,25 +1834,35 @@
         });
         clone.querySelectorAll("img").forEach((im) => {
           const src = im.getAttribute("src") || "";
-          if (!src.startsWith("data:")) {
-            const ph = document.createElement("div");
-            ph.textContent = "🖼 " + (src.slice(0, 60) || "картинка");
-            ph.style.cssText = "padding:8px 10px;font-size:12px;border:1px dashed #8a8f98;border-radius:8px;color:#a6a6b0;min-height:60px;box-sizing:border-box;margin:8px;";
-            im.replaceWith(ph);
-          }
+          const isData = src.startsWith("data:");
+          if (!isData || stripAll) { im.replaceWith(imgPlaceholder(src)); return; }
+          if (src.startsWith("data:image/svg+xml")) svgImgs.push({ im, w: s.w, h: s.h });
         });
         // contentEditable не нужен в статичной картинке
         clone.querySelectorAll("[contenteditable]").forEach((n) => n.removeAttribute("contenteditable"));
         wrap.appendChild(clone);
       }
       if (!wrap.children.length) return null;
+      // Вложенные SVG-картинки: растрировать в PNG ДО сериализации
+      if (svgImgs.length) {
+        await Promise.all(svgImgs.map(async ({ im, w, h }) => {
+          const png = await svgToPngDataUrl(im.getAttribute("src"), w, h);
+          if (png) im.setAttribute("src", png);
+          else im.replaceWith(imgPlaceholder("SVG"));
+        }));
+      }
       // SVG рендерится в dpr-размере, потом drawImage кладёт его 1:1 в
       // устройство-пиксели → скрин не мылится на HiDPI.
+      // Сериализация — XMLSerializer: SVG-картинка парсится как XML, и
+      // HTML-вывод innerHTML (<img>/<br> без самозакрытия) ломает весь
+      // документ на parse error (вот почему экспорт падал даже без картинок,
+      // если в текст-блоке был перенос). XMLSerializer выдаёт валидный
+      // XHTML: <img/>, <br/>, экранированные атрибуты.
       const inner =
         `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(CW * dpr2)}" height="${Math.round(CH * dpr2)}">` +
         `<foreignObject x="0" y="0" width="${Math.round(CW * dpr2)}" height="${Math.round(CH * dpr2)}">` +
         `<div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:${CW}px;height:${CH}px;overflow:hidden;transform-origin:0 0;transform:scale(${dpr2});">` +
-        wrap.innerHTML +
+        new XMLSerializer().serializeToString(wrap) +
         `</div></foreignObject></svg>`;
       return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(inner);
     }
@@ -1802,16 +1874,32 @@
         out.width = cv.width; out.height = cv.height;
         const c2 = out.getContext("2d");
         c2.drawImage(cv, 0, 0);
-        const svgUrl = snapshotBlocksSvg();
-        if (svgUrl) {
+        const loadSvgImg = (url) => new Promise((res, rej) => {
           const img = new Image();
-          await new Promise((res, rej) => {
-            img.onload = res;
-            img.onerror = () => rej(new Error("не удалось отрисовать блоки (SVG-снапшот)"));
-            img.src = svgUrl;
-          });
-          c2.setTransform(dpr, 0, 0, dpr, 0, 0);
-          c2.drawImage(img, 0, 0, CW, CH);
+          img.onload = () => res(img);
+          img.onerror = () => rej(new Error("не удалось отрисовать блоки (SVG-снапшот)"));
+          img.src = url;
+        });
+        let svgUrl = await snapshotBlocksSvg();
+        if (svgUrl) {
+          let blocksImg = null;
+          try {
+            blocksImg = await loadSvgImg(svgUrl);
+          } catch {
+            // Страховка 1: не собрались блоки — повтор без картинок.
+            svgUrl = await snapshotBlocksSvg(true);
+            try {
+              blocksImg = await loadSvgImg(svgUrl);
+            } catch {
+              // Страховка 2: совсем не собирается (экзотический контент
+              // блоков) — сохраняем чистый канвас, не валим экспорт.
+              blocksImg = null;
+            }
+          }
+          if (blocksImg) {
+            c2.setTransform(dpr, 0, 0, dpr, 0, 0);
+            c2.drawImage(blocksImg, 0, 0, CW, CH);
+          }
         }
         const data = out.toDataURL("image/png").split(",")[1];
         const p = await invoke("save_image_file", { name: "graph.png", dataBase64: data });

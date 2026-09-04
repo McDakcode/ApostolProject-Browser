@@ -5,7 +5,8 @@
 <meta charset="utf-8" />
 <title>APB — ApostolProject Browser</title>
 <link rel="icon" type="image/png" href="logo.png?v=2" />
-<link rel="stylesheet" href="style.css?v=9" />
+<link rel="stylesheet" href="vendor/katex/katex.min.css" />
+<link rel="stylesheet" href="style.css?v=11" />
 <script>
   document.documentElement.setAttribute("data-theme", localStorage.getItem("apb-theme") || "dark");
 </script>
@@ -367,6 +368,14 @@
                   <button id="tourReplayBtn" class="ghost-btn small">❓ Подсказки по браузеру</button>
                 </div>
 
+                <p class="panel-subtitle">Язык интерфейса</p>
+                <div class="pz-row"><span>Язык (Language)</span>
+                  <select id="apLangSel">
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+
                 <p class="panel-subtitle">Тема</p>
                 <div class="theme-buttons">
                   <button id="themeDarkBtn" data-theme-choice="dark">Чёрная тема</button>
@@ -434,16 +443,35 @@
                     <option value="mono">Consolas (mono)</option>
                   </select>
                 </div>
+                <div class="pz-row"><span>Свой шрифт (файл .ttf/.otf/.woff)</span>
+                  <button id="apFontPickBtn" class="ghost-btn small">📁 Выбрать…</button>
+                  <button id="apFontResetBtn" class="ghost-btn small">✕</button>
+                  <span id="apFontName" class="hint" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                  <input type="file" id="apFontPick" accept=".ttf,.otf,.woff,.woff2" style="display:none" />
+                </div>
+                <div class="pz-row"><span>Шрифт заголовков</span>
+                  <select id="apHeadFontSel">
+                    <option value="">Как основной</option>
+                    <option value="system">Системный</option>
+                    <option value="segoe">Segoe UI</option>
+                    <option value="georgia">Georgia (serif)</option>
+                    <option value="mono">Consolas (mono)</option>
+                  </select>
+                </div>
                 <label class="pz-row"><span>Размер шрифта</span><input type="range" id="apFontSize" min="12" max="16" value="13" /></label>
 
                 <p class="panel-subtitle">Своя тема (переопределяет чёрную/белую)</p>
                 <div class="pz-grid">
-                  <label class="pz-row"><span>Фон приложения</span><input type="color" id="thBg" value="#000000" /></label>
+                  <label class="pz-row"><span>Фон интерфейса</span><input type="color" id="thBg" value="#000000" /></label>
                   <label class="pz-row"><span>Панели и шапки</span><input type="color" id="thSoft" value="#0b0b0d" /></label>
                   <label class="pz-row"><span>Карточки и списки</span><input type="color" id="thSurface" value="#1a1a1e" /></label>
+                  <label class="pz-row"><span>Наведение и активные</span><input type="color" id="thSurface2" value="#232329" /></label>
                   <label class="pz-row"><span>Границы</span><input type="color" id="thBorder" value="#333338" /></label>
                   <label class="pz-row"><span>Текст</span><input type="color" id="thText" value="#f2f2f4" /></label>
+                  <label class="pz-row"><span>Вторичный текст</span><input type="color" id="thTextDim" value="#a6a6b0" /></label>
                   <label class="pz-row"><span>Ссылки и акцент-текст</span><input type="color" id="thLink" value="#7fb0ff" /></label>
+                  <label class="pz-row"><span>Акцент</span><input type="color" id="thAccent" value="#7fb0ff" /></label>
+                  <label class="pz-row"><span>Ошибки/удаление</span><input type="color" id="thDanger" value="#ff6575" /></label>
                 </div>
                 <div class="pz-row" style="flex-wrap:wrap;gap:6px;justify-content:flex-start">
                   <button id="thApply" class="ghost-btn small">Применить цвета</button>
@@ -454,7 +482,7 @@
                   <button id="thPresetDel" class="ghost-btn small">Удалить</button>
                 </div>
 
-                <p class="panel-subtitle">Фон главной страницы</p>
+                <p class="panel-subtitle">Фон интерфейса (весь браузер)</p>
                 <div class="pz-grid">
                   <label class="pz-row"><span>Цвет фона</span><input type="color" id="apBgColor" /></label>
                   <label class="pz-row"><span>Затемнение картинки</span><input type="range" id="apBgDim" min="0" max="80" value="35" /></label>
@@ -464,7 +492,19 @@
                   <button id="apBgFileBtn" class="ghost-btn small">📁 С файла…</button>
                   <input type="file" id="apBgFile" accept="image/*" style="display:none" />
                 </div>
-                <button id="apBgReset" class="ghost-btn">Сбросить фон главной</button>
+                <div class="pz-grid">
+                  <label class="pz-row"><span>Размещение</span>
+                    <select id="apBgFit">
+                      <option value="cover">Растянуть (cover)</option>
+                      <option value="contain">Вписать (contain)</option>
+                      <option value="auto">Реальный размер</option>
+                      <option value="repeat">Замостить</option>
+                    </select>
+                  </label>
+                  <label class="pz-row"><span>Размытие (блюр)</span><input type="range" id="apBgBlur" min="0" max="30" value="0" /></label>
+                </div>
+                <label class="pz-row"><span>Только главная (не весь интерфейс)</span><input type="checkbox" id="apBgHomeOnly" /></label>
+                <button id="apBgReset" class="ghost-btn">Сбросить фон</button>
                 <p class="hint">Настройки применяются мгновенно и сохраняются в браузере.</p>
               </section>
 
@@ -868,19 +908,21 @@
   <!-- Debug-логгер НЕ подключён здесь: в debug-сборке его инжектит бэкенд
        (main.rs DEBUG_FRONTEND_JS, initialization_script до всех скриптов),
        в release-сборке логгера нет вообще. -->
-  <script src="js/core/boot-core.js?v=7"></script>
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="js/core/i18n.js?v=3"></script>
+  <script src="js/core/boot-core.js?v=8"></script>
   <script src="js/shell/updater-ui.js?v=2"></script>
   <script src="js/shell/sitefx-ctxmenu-find.js?v=11"></script>
   <script src="js/shell/theme-searchengines.js?v=3"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>
   <script src="js/shell/sound-internalpages.js?v=2"></script>
-  <script src="js/tabs/session-ws-downloads-tabs.js?v=19"></script>
+  <script src="js/tabs/session-ws-downloads-tabs.js?v=20"></script>
   <script src="js/home/home-widgets.js?v=2"></script>
   <script src="js/panels/omnibox-library-panels.js?v=19"></script>
-  <script src="js/notes/notes-editor.js?v=10"></script>
-  <script src="js/settings/settings-onboarding-pz.js?v=14"></script>
+  <script src="js/notes/notes-editor.js?v=11"></script>
+  <script src="js/settings/settings-onboarding-pz.js?v=16"></script>
   <script src="js/graph/graph-settings.js"></script>
-  <script src="js/graph/graph.js?v=7"></script>
+  <script src="js/graph/graph.js?v=11"></script>
 </body>
 </html>
 

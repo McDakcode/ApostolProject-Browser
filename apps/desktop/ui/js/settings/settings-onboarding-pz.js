@@ -65,7 +65,7 @@ function showOnboarding() {
 // width, glass, motion — persisted in localStorage ("apb-ui").
 // ---------------------------------------------------------------------
 
-const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, thBg: "", thSoft: "", thText: "", thLink: "", thSurface: "", thBorder: "", sound: true, settingsCols: false, settingsW: 640 };
+const PZ_DEFAULTS = { accent: "", radius: 12, sidebar: 232, density: "normal", glass: true, motion: true, glassA: "", tabsPos: "left", sidebarSide: "left", panelSide: "left", hideTools: false, wsCount: true, sideHover: false, font: "system", fontData: "", fontName: "", headFont: "", fontSize: 13, bgColor: "", bgImg: "", bgDim: 35, bgFit: "cover", bgBlur: 0, bgHomeOnly: true, thBg: "", thSoft: "", thText: "", thTextDim: "", thLink: "", thAccent: "", thSurface: "", thSurface2: "", thBorder: "", thDanger: "", sound: true, settingsCols: false, settingsW: 640 };
 
 // Curated font stacks for the UI font setting
 const AP_FONTS = {
@@ -99,9 +99,28 @@ function pzApply() {
   document.body.classList.toggle("no-motion", !p.motion);
 
   // --- Appearance page ---
-  // Font
-  rs.setProperty("--font-body", AP_FONTS[p.font] || AP_FONTS.system);
+  // Font (+ свой шрифт из файла — FontFace с data:URL, живёт в apb-ui)
+  const CUSTOM_STACK = '"APB Custom", ' + AP_FONTS.system;
+  if (p.fontData) {
+    try {
+      // файл могли сменить: старый FontFace надо снять с document.fonts,
+      // иначе в семье "APB Custom" остаются два лица и побеждает случайное
+      if (pzCustomFontFace && pzCustomFontFaceUrl !== p.fontData) {
+        try { document.fonts.delete(pzCustomFontFace); } catch {}
+        pzCustomFontFace = null;
+      }
+      if (!pzCustomFontFace) {
+        pzCustomFontFace = new FontFace("APB Custom", 'url("' + p.fontData + '")');
+        pzCustomFontFaceUrl = p.fontData;
+        document.fonts.add(pzCustomFontFace);
+      }
+      pzCustomFontFace.load().catch(() => {});
+    } catch {}
+  }
+  rs.setProperty("--font-body", p.font === "custom" && p.fontData ? CUSTOM_STACK : (AP_FONTS[p.font] || AP_FONTS.system));
   document.body.style.fontSize = (p.fontSize || 13) + "px";
+  // Шрифт заголовков: пусто = как основной; "custom" = свой файл.
+  rs.setProperty("--font-head", p.headFont === "custom" && p.fontData ? CUSTOM_STACK : (AP_FONTS[p.headFont] || "var(--font-body)"));
   // Tabs position / tools visibility
   document.body.classList.toggle("tabbar-top", p.tabsPos === "top");
   document.body.classList.toggle("sidebar-right", p.sidebarSide === "right");
@@ -119,32 +138,87 @@ function pzApply() {
   if (p.thBg) rs.setProperty("--bg", p.thBg); else rs.removeProperty("--bg");
   if (p.thSoft) rs.setProperty("--bg-soft", p.thSoft); else rs.removeProperty("--bg-soft");
   if (p.thText) { rs.setProperty("--text", p.thText); } else rs.removeProperty("--text");
+  if (p.thTextDim) rs.setProperty("--text-dim", p.thTextDim); else rs.removeProperty("--text-dim");
   // Was already saved/restored via presets & export but never actually
   // applied to a CSS variable, or restored into its own control on load —
   // fixing so the "Ссылки и акцент-текст" picker actually does something.
   if (p.thLink) rs.setProperty("--link", p.thLink); else rs.removeProperty("--link");
+  if (p.thAccent) rs.setProperty("--accent", p.thAccent); else rs.removeProperty("--accent");
+  if (p.thDanger) rs.setProperty("--danger", p.thDanger); else rs.removeProperty("--danger");
   if (p.thSurface) {
     rs.setProperty("--surface", p.thSurface);
-    // Nudge the hover/active shade toward the text color (works for both
-    // light and dark custom surfaces) so hover states stay visible.
-    rs.setProperty("--surface-2", `color-mix(in srgb, ${p.thSurface} 88%, var(--text) 12%)`);
-  } else { rs.removeProperty("--surface"); rs.removeProperty("--surface-2"); }
+  } else { rs.removeProperty("--surface"); }
+  // «Наведение и активные»: цвет из пикера; без него — прежний автотон
+  // (примесь текста), чтобы ховеры оставались видимыми на любой теме.
+  if (p.thSurface2) rs.setProperty("--surface-2", p.thSurface2);
+  else if (p.thSurface) rs.setProperty("--surface-2", `color-mix(in srgb, ${p.thSurface} 88%, var(--text) 12%)`);
+  else rs.removeProperty("--surface-2");
   if (p.thBorder) { rs.setProperty("--border", p.thBorder); rs.setProperty("--border-strong", p.thBorder); }
   else { rs.removeProperty("--border"); rs.removeProperty("--border-strong"); }
-  // Home background
+  // Фон: два адресата — слой ВСЕГО интерфейса (#apbBgLayer, см. pzEnsureBgLayer)
+  // и/или главная страница. bgHomeOnly=true → только главная (как раньше);
+  // false → картинка-фон под всем UI (панели полупрозрачны через --glass).
   const be = document.getElementById("browserEmpty");
   if (be) {
     const dim = Math.max(0, Math.min(80, p.bgDim == null ? 35 : p.bgDim)) / 100;
-    be.style.backgroundColor = p.bgColor || "";
-    be.style.backgroundImage = p.bgImg
-      ? `linear-gradient(rgba(0,0,0,${dim}), rgba(0,0,0,${dim})), url("${p.bgImg}")`
-      : "";
-    be.style.backgroundSize = p.bgImg ? "cover" : "";
-    be.style.backgroundPosition = p.bgImg ? "center" : "";
-    be.style.backgroundRepeat = "no-repeat";
-    be.style.backgroundAttachment = p.bgImg ? "fixed" : "";
+    if (p.bgImg && (p.bgHomeOnly !== false)) {
+      be.style.backgroundColor = p.bgColor || "";
+      be.style.backgroundImage = `linear-gradient(rgba(0,0,0,${dim}), rgba(0,0,0,${dim})), url("${p.bgImg}")`;
+      be.style.backgroundSize = p.bgFit === "repeat" ? "auto" : (p.bgFit || "cover");
+      be.style.backgroundPosition = "center";
+      be.style.backgroundRepeat = p.bgFit === "repeat" ? "repeat" : "no-repeat";
+      be.style.backgroundAttachment = p.bgFit === "repeat" ? "local" : "fixed";
+    } else {
+      // фон главной сбрасываем в цвет (или прозрачность, если слой UI снизу)
+      be.style.backgroundImage = "";
+      be.style.backgroundColor = p.bgImg && !p.bgHomeOnly ? "transparent" : (p.bgColor || "");
+      be.style.backgroundSize = ""; be.style.backgroundPosition = "";
+      be.style.backgroundRepeat = ""; be.style.backgroundAttachment = "";
+    }
+  }
+  // Слой интерфейса: создан один раз, живёт ПОД контентом (z-index за
+  // .browser-empty и панелями), управляется переменными bg-*
+  const layer = pzEnsureBgLayer();
+  if (layer) {
+    const dim = Math.max(0, Math.min(80, p.bgDim == null ? 35 : p.bgDim)) / 100;
+    const blur = Math.max(0, Math.min(30, p.bgBlur || 0));
+    if (p.bgImg && p.bgHomeOnly === false) {
+      layer.style.backgroundImage = `linear-gradient(rgba(0,0,0,${dim}), rgba(0,0,0,${dim})), url("${p.bgImg}")`;
+      layer.style.backgroundSize = p.bgFit === "repeat" ? "auto" : (p.bgFit || "cover");
+      layer.style.backgroundPosition = "center";
+      layer.style.backgroundRepeat = p.bgFit === "repeat" ? "repeat" : "no-repeat";
+      layer.style.filter = blur ? `blur(${blur}px)` : "";
+      // блюр по краям рамки — тёмные края от фильтра не вылезают
+      layer.style.transform = blur ? "scale(1.04)" : "";
+      layer.style.backgroundColor = p.bgColor || "";
+      layer.style.display = "";
+    } else {
+      layer.style.display = "none";
+    }
   }
 }
+
+// Слой фоновой картинки интерфейса: <div id="apbBgLayer"> сразу под body
+// (fixed, за всем контентом). Создаётся лениво в pzApply.
+let pzBgLayer = null;
+function pzEnsureBgLayer() {
+  if (pzBgLayer && document.getElementById("apbBgLayer")) return pzBgLayer;
+  let el = document.getElementById("apbBgLayer");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "apbBgLayer";
+    // первый ребёнок body: сайдбар/тулбар/контент идут позже → выше по
+    // стеку без z-index-войн; сам слой fixed и невидим для событий.
+    document.body.insertBefore(el, document.body.firstChild);
+  }
+  pzBgLayer = el;
+  return el;
+}
+
+// Кэш FontFace своего шрифта (fontData живёт в apb-ui, вес ~100-500КБ).
+// Url хранится, чтобы заметить смену файла и пересоздать лицо.
+let pzCustomFontFace = null;
+let pzCustomFontFaceUrl = "";
 
 function pzUpdate(patch) {
   const p = { ...pzLoad(), ...patch };
@@ -172,14 +246,24 @@ function pzSyncControls() {
   ap("apHideTools", (el) => { el.checked = !!p.hideTools; });
   ap("apFontSel", (el) => { el.value = p.font || "system"; });
   ap("apFontSize", (el) => { el.value = p.fontSize || 13; });
+  // свой шрифт: имя файла рядом с кнопкой, селектор — "custom" при наличии
+  ap("apFontName", (el) => { el.textContent = p.fontName ? "📄 " + p.fontName : ""; el.title = p.fontName || ""; });
+  ap("apHeadFontSel", (el) => { el.value = p.headFont || ""; });
   ap("thBg", (el) => { el.value = p.thBg || "#000000"; });
   ap("thSoft", (el) => { el.value = p.thSoft || "#0b0b0d"; });
   ap("thText", (el) => { el.value = p.thText || "#f2f2f4"; });
+  ap("thTextDim", (el) => { el.value = p.thTextDim || "#a6a6b0"; });
   ap("thLink", (el) => { el.value = p.thLink || "#7fb0ff"; });
+  ap("thAccent", (el) => { el.value = p.thAccent || "#7fb0ff"; });
+  ap("thDanger", (el) => { el.value = p.thDanger || "#ff6575"; });
   ap("thSurface", (el) => { el.value = p.thSurface || "#1a1a1e"; });
+  ap("thSurface2", (el) => { el.value = p.thSurface2 || "#232329"; });
   ap("thBorder", (el) => { el.value = p.thBorder || "#333338"; });
   ap("apBgColor", (el) => { el.value = p.bgColor || "#000000"; });
   ap("apBgImg", (el) => { el.value = p.bgImg && !p.bgImg.startsWith("data:") ? p.bgImg : ""; });
+  ap("apBgFit", (el) => { el.value = p.bgFit || "cover"; });
+  ap("apBgBlur", (el) => { el.value = p.bgBlur || 0; });
+  ap("apBgHomeOnly", (el) => { el.checked = p.bgHomeOnly !== false; });
   ap("apGlassA", (el) => { el.value = p.glassA || (document.documentElement.getAttribute("data-theme") === "light" ? 90 : 85); });
   ap("apBgDim", (el) => { el.value = p.bgDim == null ? 35 : p.bgDim; });
   ap("apWsCount", (el) => { el.checked = p.wsCount !== false; });
@@ -214,15 +298,49 @@ apOn("apHideTools", "change", (e) => pzUpdate({ hideTools: e.target.checked }));
 apOn("apSideHover", "change", (e) => pzUpdate({ sideHover: e.target.checked }));
 apOn("apFontSel", "change", (e) => pzUpdate({ font: e.target.value }));
 apOn("apFontSize", "input", (e) => pzUpdate({ fontSize: +e.target.value }));
+// Свой шрифт с диска: читается как data-URL и живёт прямо в apb-ui
+// (localStorage; .ttf/.otf/.woff обычно 100–500 КБ — влезает). Через
+// FontFace "APB Custom" в pzApply становится доступным всему интерфейсу.
+apOn("apFontPickBtn", "click", () => document.getElementById("apFontPick")?.click());
+apOn("apFontPick", "change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 6_000_000) { alert("Файл шрифта слишком большой (макс. 6 МБ)."); e.target.value = ""; return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    // старое лицо снимет сам pzApply (url не совпадёт)
+    pzUpdate({ fontData: reader.result, fontName: file.name, font: "custom" });
+    toast("Шрифт «" + file.name + "» применён");
+  };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+});
+apOn("apFontResetBtn", "click", () => {
+  // снять лицо из document.fonts — pzApply уже не увидит fontData
+  if (pzCustomFontFace) { try { document.fonts.delete(pzCustomFontFace); } catch {} }
+  pzCustomFontFace = null; pzCustomFontFaceUrl = "";
+  pzUpdate({ fontData: "", fontName: "", font: "system" });
+});
+apOn("apHeadFontSel", "change", (e) => pzUpdate({ headFont: e.target.value }));
 apOn("thBg", "input", (e) => pzUpdate({ thBg: e.target.value }));
 apOn("thSoft", "input", (e) => pzUpdate({ thSoft: e.target.value }));
 apOn("thSurface", "input", (e) => pzUpdate({ thSurface: e.target.value }));
+apOn("thSurface2", "input", (e) => pzUpdate({ thSurface2: e.target.value }));
 apOn("thBorder", "input", (e) => pzUpdate({ thBorder: e.target.value }));
 apOn("thText", "input", (e) => pzUpdate({ thText: e.target.value }));
+apOn("thTextDim", "input", (e) => pzUpdate({ thTextDim: e.target.value }));
 apOn("thLink", "input", (e) => pzUpdate({ thLink: e.target.value }));
+apOn("thAccent", "input", (e) => pzUpdate({ thAccent: e.target.value }));
+apOn("thDanger", "input", (e) => pzUpdate({ thDanger: e.target.value }));
 apOn("apBgColor", "input", (e) => pzUpdate({ bgColor: e.target.value }));
 apOn("apBgImg", "change", (e) => pzUpdate({ bgImg: e.target.value.trim() }));
-apOn("apBgReset", "click", () => { pzUpdate({ bgColor: "", bgImg: "" }); pzSyncControls(); });
+apOn("apBgFit", "change", (e) => pzUpdate({ bgFit: e.target.value }));
+apOn("apBgBlur", "input", (e) => pzUpdate({ bgBlur: +e.target.value }));
+apOn("apBgHomeOnly", "change", (e) => pzUpdate({ bgHomeOnly: e.target.checked }));
+apOn("apBgReset", "click", () => {
+  pzUpdate({ bgColor: "", bgImg: "", bgFit: "cover", bgBlur: 0, bgHomeOnly: true });
+  pzSyncControls();
+});
 apOn("exitTopBtn", "click", () => { pzUpdate({ tabsPos: "left" }); syncPageLayout(true); });
 apOn("ntTopBtn", "click", () => document.getElementById("newTabBtn").click());
 apOn("apGlassA", "input", (e) => pzUpdate({ glassA: +e.target.value }));
@@ -289,9 +407,13 @@ function thReadFields() {
     thBg: document.getElementById("thBg").value,
     thSoft: document.getElementById("thSoft").value,
     thSurface: document.getElementById("thSurface").value,
+    thSurface2: document.getElementById("thSurface2").value,
     thBorder: document.getElementById("thBorder").value,
     thText: document.getElementById("thText").value,
+    thTextDim: document.getElementById("thTextDim").value,
     thLink: document.getElementById("thLink").value,
+    thAccent: document.getElementById("thAccent").value,
+    thDanger: document.getElementById("thDanger").value,
   };
 }
 apOn("thApply", "click", () => {
@@ -299,7 +421,7 @@ apOn("thApply", "click", () => {
   toast("Цвета применены");
 });
 apOn("thReset", "click", () => {
-  pzUpdate({ thBg: "", thSoft: "", thSurface: "", thBorder: "", thText: "", thLink: "" });
+  pzUpdate({ thBg: "", thSoft: "", thSurface: "", thSurface2: "", thBorder: "", thText: "", thTextDim: "", thLink: "", thAccent: "", thDanger: "" });
   pzSyncControls();
 });
 apOn("thPresetSave", "click", async () => {
@@ -319,7 +441,9 @@ apOn("thPresetLoad", "click", () => {
   if (!t) return;
   pzUpdate({
     thBg: t.thBg || "", thSoft: t.thSoft || "", thSurface: t.thSurface || "",
-    thBorder: t.thBorder || "", thText: t.thText || "", thLink: t.thLink || "",
+    thSurface2: t.thSurface2 || "", thBorder: t.thBorder || "",
+    thText: t.thText || "", thTextDim: t.thTextDim || "",
+    thLink: t.thLink || "", thAccent: t.thAccent || "", thDanger: t.thDanger || "",
   });
   pzSyncControls();
   toast(`Тема «${name}» применена`);
@@ -407,18 +531,27 @@ function makeResizer(handleId, paneId, { persistKey, min = 280 }) {
   const h = document.getElementById(handleId);
   const p = document.getElementById(paneId);
   if (!h || !p) return;
-  let startX = 0, startW = 0;
+  let startX = 0, startW = 0, leftEdge = false;
   h.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     h.setPointerCapture(e.pointerId);
     startX = e.clientX;
     startW = p.getBoundingClientRect().width;
+    // Направление зависит от того, на КАКОМ краю панели сидит ручка:
+    // левый край → тянем влево = шире; правый край → тянем вправо = шире.
+    // Определяем по факту при каждом захвате: панель можно перевесить
+    // на другую сторону (panel-left/panel-right), а редактор/AI всегда
+    // справа с левой ручкой — всем подходит одна логика.
+    const pr = p.getBoundingClientRect();
+    const hr = h.getBoundingClientRect();
+    leftEdge = (hr.left + hr.width / 2) < (pr.left + pr.width / 2);
     document.body.classList.add("resizing");
     h.classList.add("active");
   });
   h.addEventListener("pointermove", (e) => {
     if (!h.hasPointerCapture || !h.hasPointerCapture(e.pointerId)) return;
-    const w = Math.round(startW + (startX - e.clientX));
+    const dx = leftEdge ? (startX - e.clientX) : (e.clientX - startX);
+    const w = Math.round(startW + dx);
     p.style.width = Math.min(Math.max(w, min), Math.round(window.innerWidth * 0.7)) + "px";
     p.style.flex = "0 0 " + p.style.width;
   });

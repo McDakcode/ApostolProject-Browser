@@ -404,6 +404,7 @@ function renderTabStrip() {
     pill.className = "tab-pill" + (tab.id === activeTabId ? " active" : "") +
       ((splitPair && (tab.id === splitPair.left || tab.id === splitPair.right)) ? " split" : "");
     if (!prevIds.has(tab.id)) pill.classList.add("tab-appear");
+    pill.dataset.tabId = String(tab.id);
     pill.title = tab.url;
     const fav = document.createElement("span");
     fav.className = "tab-fav";
@@ -956,6 +957,20 @@ async function switchTab(id) {
 }
 
 function closeTab(id) {
+  // Плавный уход: пилюли (сайдбар + зеркальная верхняя лента) схлопываются
+  // с анимацией, реальное закрытие — через 150мс. Повторный клик по той же
+  // (уже «уходящей») пилюле не ждёт второй раз. Если пилюли нет в DOM —
+  // закрываем сразу.
+  const attr = `[data-tab-id="${CSS.escape(String(id))}"]`;
+  const pills = document.querySelectorAll(".tab-pill" + attr);
+  if (pills.length && !pills[0].classList.contains("tab-leave")) {
+    pills.forEach((el) => el.classList.add("tab-leave"));
+    setTimeout(() => closeTabNow(id), 150);
+    return;
+  }
+  closeTabNow(id);
+}
+function closeTabNow(id) {
   // Партнёр по сплиту остаётся видимым (бэкенд сам гасит сплит)
   let splitPartner = null;
   if (splitPair && (id === splitPair.left || id === splitPair.right)) {

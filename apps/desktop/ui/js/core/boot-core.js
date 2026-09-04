@@ -275,5 +275,20 @@ function reapplyDarkAfterNav(id) {
 }
 
 // ---------------------------------------------------------------------
+// Слайдеры: заполненная часть дорожки рисуется через --fill (CSS-градиент),
+// значение обновляется на input/change. Делегирование ловит и слайдеры,
+// созданные позже (панели, настройки, виджеты).
+// ---------------------------------------------------------------------
+function apbRangeFill(el) {
+  if (!(el instanceof HTMLInputElement) || el.type !== "range") return;
+  const min = +el.min || 0, max = +el.max || 100;
+  const pct = max > min ? ((+el.value - min) / (max - min)) * 100 : 0;
+  el.style.setProperty("--fill", Math.max(0, Math.min(100, pct)) + "%");
+}
+document.addEventListener("input", (e) => apbRangeFill(e.target), true);
+document.addEventListener("change", (e) => apbRangeFill(e.target), true);
+document.querySelectorAll('input[type="range"]').forEach(apbRangeFill);
+
+// ---------------------------------------------------------------------
 
 // Made by MrDuck

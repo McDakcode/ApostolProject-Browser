@@ -84,14 +84,39 @@ body.no-motion *, body.no-motion *::before, body.no-motion *::after {
 }
 body.no-glass { --glass: var(--bg-soft); }
 
-html, body {
+html {
   margin: 0;
   height: 100vh;
   background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  /* прозрачный: сквозь него виден #apbBgLayer (фон всего интерфейса) */
+  background: transparent;
   color: var(--text);
   font-family: var(--font-body);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Слой фоновой картинки интерфейса (создаётся pzEnsureBgLayer в JS):
+   fixed за всем контентом, невидим для событий; включается через display:'' */
+#apbBgLayer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  display: none;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Шрифт заголовков: пусто = как основной (var(--font-body)) */
+h1, h2, h3, h4,
+.internal-title, .brand-name {
+  font-family: var(--font-head, var(--font-body));
 }
 
 /* ============================================================
@@ -2329,3 +2354,339 @@ html.is-maximized body {
 #winResize .rs[data-dir="bottom-left"]  { bottom: 0; left: 0; width: 10px; height: 10px; cursor: sw-resize; }
 #winResize .rs[data-dir="bottom-right"] { bottom: 0; right: 0; width: 10px; height: 10px; cursor: se-resize; }
 html.is-maximized #winResize .rs { pointer-events: none; }
+
+/* ============================================================
+   MOTION PACK v2 — «дорогой» моушен по всему интерфейсу.
+   Всё чисто transform/opacity (layout не дёргается), гасится
+   глобально через .no-motion и prefers-reduced-motion.
+   В конце файла = высший приоритет при равной специфичности.
+   ============================================================ */
+
+:root {
+  --ease-swift: cubic-bezier(0.32, 0.72, 0, 1);   /* ящик с «доездом», панель/страницы */
+  --ease-springy: cubic-bezier(0.3, 1.4, 0.5, 1); /* лёгкий отскок, кнопки/чекбоксы */
+}
+
+@keyframes apb-sheen { to { transform: translateX(320%) skewX(-18deg); } }
+@keyframes apb-page-in { from { opacity: 0; transform: translateY(14px) scale(0.996); } }
+@keyframes apb-toast-in { from { opacity: 0; transform: translateY(18px) scale(0.9); } }
+@keyframes apb-tab-leave { to { opacity: 0; transform: translateX(28px) scale(0.88); } }
+@keyframes apb-bar-grow { from { transform: scaleY(0); } }
+@keyframes apb-chip-pulse { 50% { opacity: 0.55; } }
+@keyframes apb-greet { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+
+/* --- Акцентные кнопки: подъём, свечение и БЛЕСК-дорожка при ховере --- */
+.primary-btn, .new-tab-btn, .theme-buttons button.ready, .home-search button {
+  position: relative;
+  overflow: hidden;
+}
+/* Кнопка «перейти» остаётся position:absolute (базовое правило) —
+   для блеска ей нужен только overflow */
+.address-form button:not(.addr-btn) { overflow: hidden; }
+.primary-btn, .new-tab-btn, .theme-buttons button.ready, .home-search button {
+  transition: filter var(--speed), transform 0.18s var(--ease-out), box-shadow 0.25s ease;
+}
+.primary-btn::after, .new-tab-btn::after, .theme-buttons button.ready::after,
+.home-search button::after, .address-form button:not(.addr-btn)::after {
+  content: "";
+  position: absolute; top: -20%; bottom: -20%; left: 0;
+  width: 40%;
+  background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.32) 50%, transparent 80%);
+  transform: translateX(-160%) skewX(-18deg);
+  pointer-events: none;
+}
+.primary-btn:hover, .new-tab-btn:hover, .theme-buttons button.ready:hover, .home-search button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.primary-btn:hover::after, .new-tab-btn:hover::after, .theme-buttons button.ready:hover::after,
+.home-search button:hover::after, .address-form button:not(.addr-btn):hover::after {
+  animation: apb-sheen 0.55s ease;
+}
+.primary-btn:active, .new-tab-btn:active, .home-search button:active,
+.theme-buttons button:active { transform: translateY(0) scale(0.97); transition-duration: 0.05s; }
+.address-form button:active { transform: scale(0.9); }
+
+/* --- Микро-масштаб иконок в круглых кнопках --- */
+.nav-btn svg.ic, .icon-btn svg.ic, .address-form button svg.ic {
+  transition: transform 0.22s var(--ease-springy);
+}
+.nav-btn:hover:not(:disabled) svg.ic, .icon-btn:hover svg.ic { transform: scale(1.16); }
+
+/* --- Кнопки окна: закрытие краснеет как положено --- */
+.win-controls button { transition: background var(--speed), color var(--speed), transform 0.12s; }
+.win-controls button:active { transform: scale(0.9); }
+#winClose:hover { background: #e81123; color: #fff; }
+
+/* --- Адресная строка: глубокое свечение при фокусе --- */
+.address-form input:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(128, 128, 128, 0.18)),
+              0 4px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.home-search { transition: border-color var(--speed), box-shadow var(--speed), transform 0.22s var(--ease-out); }
+.home-search:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(128, 128, 128, 0.18)),
+              0 6px 22px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* --- Подсказки омнибокса: поп листа + лёгкий каскад пунктов --- */
+#omniSuggest { animation: apb-pop 0.18s var(--ease-bounce) backwards; transform-origin: top center; }
+.omni-item {
+  transition: background 0.12s ease, color 0.12s ease, transform 0.15s var(--ease-out), box-shadow 0.15s;
+  animation: apb-fade 0.14s ease-out backwards;
+}
+.omni-item:nth-child(1) { animation-delay: 0ms; }
+.omni-item:nth-child(2) { animation-delay: 22ms; }
+.omni-item:nth-child(3) { animation-delay: 44ms; }
+.omni-item:nth-child(4) { animation-delay: 66ms; }
+.omni-item:nth-child(5) { animation-delay: 88ms; }
+.omni-item:nth-child(6) { animation-delay: 110ms; }
+.omni-item:nth-child(7) { animation-delay: 132ms; }
+.omni-item:hover, .omni-item.sel {
+  transform: translateX(3px);
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--text);
+}
+
+/* --- Внутренние страницы: мягкий въезд + каскад верхних блоков --- */
+.panel.ip-anim { animation: apb-page-in 0.28s var(--ease-swift) both; }
+.panel.ip-anim > * { animation: apb-fade-up 0.3s var(--ease-out) backwards; }
+.panel.ip-anim > *:nth-child(1) { animation-delay: 0.04s; }
+.panel.ip-anim > *:nth-child(2) { animation-delay: 0.07s; }
+.panel.ip-anim > *:nth-child(3) { animation-delay: 0.1s; }
+.panel.ip-anim > *:nth-child(4) { animation-delay: 0.13s; }
+.panel.ip-anim > *:nth-child(5) { animation-delay: 0.16s; }
+.panel.ip-anim > *:nth-child(6) { animation-delay: 0.19s; }
+.panel.ip-anim > *:nth-child(7) { animation-delay: 0.22s; }
+.panel.ip-anim > *:nth-child(8) { animation-delay: 0.25s; }
+.panel.ip-anim > *:nth-child(n+9) { animation-delay: 0.28s; }
+/* Строки списков/карточки: быстрое проявление, каскадом до 12, дальше без --- */
+.panel.ip-anim :is(.hist-list li, .pw-card) { animation: apb-fade-up 0.24s var(--ease-out) backwards; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(1) { animation-delay: 0.1s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(2) { animation-delay: 0.14s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(3) { animation-delay: 0.18s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(4) { animation-delay: 0.22s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(5) { animation-delay: 0.26s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(6) { animation-delay: 0.3s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(7) { animation-delay: 0.34s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(8) { animation-delay: 0.38s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(9) { animation-delay: 0.42s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(10) { animation-delay: 0.46s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(11) { animation-delay: 0.5s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(12) { animation-delay: 0.54s; }
+.panel.ip-anim :is(.hist-list li, .pw-card):nth-child(n+13) { animation-delay: 0.58s; }
+/* Побочные списки (панели сбоку): короткое проявление без движения --- */
+.list li { animation: apb-fade 0.12s ease-out backwards; }
+
+/* --- Навигация настроек: индикатор-полоска у активного пункта --- */
+.isec-link { position: relative; transition: background var(--speed), color var(--speed), transform 0.18s var(--ease-out); }
+.isec-link:hover { transform: translateX(2px); }
+.isec-link.active::before {
+  content: "";
+  position: absolute; left: 3px; top: 22%; bottom: 22%;
+  width: 3px; border-radius: 999px;
+  background: var(--accent);
+  animation: apb-bar-grow 0.24s var(--ease-out);
+  transform-origin: center;
+}
+
+/* --- Боковая панель: плавнее ход + контент въезжает следом --- */
+.side-panel {
+  transition: flex-basis 0.32s var(--ease-swift), width 0.32s var(--ease-swift),
+              border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.side-panel.open .side-panel-inner { animation: apb-fade-up 0.3s var(--ease-out) 0.06s backwards; }
+/* Во время ручного ресайза панелей анимации выключены — курсор не «резиновый» */
+body.resizing .side-panel { transition: none; }
+
+/* --- Вкладки: ховер-нычок и красивый уход при закрытии --- */
+.tab-pill:hover:not(.dragging) { transform: translateX(2px); }
+.tab-pill.tab-leave {
+  pointer-events: none;
+  animation: apb-tab-leave 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* --- Тайл-панель быстрого доступа: пружинистые карточки + каскад --- */
+.tile {
+  animation: apb-fade-up 0.32s var(--ease-out) backwards;
+  transition: transform 0.22s var(--ease-out), box-shadow 0.25s ease,
+              background var(--speed), border-color var(--speed);
+}
+.tile:hover {
+  transform: translateY(-4px) scale(1.03);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+.tile:active { transform: translateY(-1px) scale(0.98); transition-duration: 0.05s; }
+.tile-av { transition: transform 0.25s var(--ease-springy); }
+.tile:hover .tile-av { transform: translateY(-2px) scale(1.08) rotate(-4deg); }
+.tile-x { transform: scale(0.6); transition: opacity var(--speed), transform 0.2s var(--ease-springy); }
+.tile:hover .tile-x { opacity: 1; transform: scale(1); }
+.tile-add:hover { transform: none; }
+.tiles .tile:nth-child(1) { animation-delay: 20ms; }
+.tiles .tile:nth-child(2) { animation-delay: 50ms; }
+.tiles .tile:nth-child(3) { animation-delay: 80ms; }
+.tiles .tile:nth-child(4) { animation-delay: 110ms; }
+.tiles .tile:nth-child(5) { animation-delay: 140ms; }
+.tiles .tile:nth-child(6) { animation-delay: 170ms; }
+.tiles .tile:nth-child(7) { animation-delay: 200ms; }
+.tiles .tile:nth-child(8) { animation-delay: 230ms; }
+.tiles .tile:nth-child(9) { animation-delay: 260ms; }
+.tiles .tile:nth-child(n+10) { animation-delay: 290ms; }
+
+/* --- Приветствие на главной: переливающийся градиент по тексту --- */
+.home-greeting {
+  background: linear-gradient(100deg,
+    var(--text) 30%,
+    color-mix(in srgb, var(--accent) 60%, var(--text)) 50%,
+    var(--text) 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: apb-greet 7s ease-in-out infinite;
+}
+
+/* --- Тосты: пружинистый поп + свечение по типу --- */
+.toast { animation: apb-toast-in 0.34s var(--ease-springy) both; }
+.toast.ok  { box-shadow: var(--shadow-2), 0 0 22px rgba(88, 214, 141, 0.22); }
+.toast.err { box-shadow: var(--shadow-2), 0 0 22px rgba(255, 101, 117, 0.28); }
+
+/* --- Модальные диалоги: фон с блюром, карточка мягко «оседает» --- */
+.dlg-overlay { backdrop-filter: blur(4px); }
+.dlg { animation: apb-pop 0.24s var(--ease-springy) backwards; }
+
+/* --- Сейф: замок парит, содержимое проявляется при разблокировке --- */
+.pw-lock-icon { animation: floaty 3.6s ease-in-out infinite; }
+#vaultContentBox:not(.hidden) { animation: apb-fade-up 0.32s var(--ease-out) backwards; }
+.pw-card .pc-btns button {
+  transition: color var(--speed), border-color var(--speed), background var(--speed), transform 0.15s var(--ease-out);
+}
+.pw-card .pc-btns button:hover { transform: translateY(-1px); }
+
+/* --- Бегущие чипы: статусы дышат --- */
+.dl-chip { transition: background 0.3s ease, color 0.3s ease; }
+.dl-chip.st-active { animation: apb-chip-pulse 1.6s ease-in-out infinite; }
+.badge { transition: transform 0.15s var(--ease-out), border-color var(--speed), color var(--speed); }
+.badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--text); }
+
+/* --- Ссылки: мягкая смена цвета --- */
+a { transition: color 0.15s ease; }
+
+/* --- Кастомные ЧЕКБОКСЫ: плитка с галочкой-пружиной --- */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 15px; height: 15px;
+  margin: 0;
+  flex-shrink: 0;
+  vertical-align: -2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.1s ease;
+}
+input[type="checkbox"]::after {
+  content: "";
+  position: absolute; left: 4px; top: 1px;
+  width: 4px; height: 7px;
+  border: solid var(--on-accent, #fff);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg) scale(0);
+  transform-origin: center;
+  transition: transform 0.16s var(--ease-springy);
+}
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+input[type="checkbox"]:checked::after { transform: rotate(40deg) scale(1); }
+input[type="checkbox"]:active { transform: scale(0.85); }
+input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
+/* Контекстные размеры (перечислены заново — они раньше в файле) */
+.pz-row input[type="checkbox"], .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; }
+.md-preview input[type="checkbox"], #taskList input[type="checkbox"],
+.board-item ul.bi-tasks input[type="checkbox"] { width: 14px; height: 14px; border-radius: 4px; }
+.md-preview input[type="checkbox"]::after, #taskList input[type="checkbox"]::after,
+.board-item ul.bi-tasks input[type="checkbox"]::after {
+  left: 3px; top: 0.5px; height: 6px; border-width: 0 1.5px 1.5px 0;
+}
+
+/* --- Слайдеры: заполненная дорожка (--fill ставит JS) + пружинистый бегунок --- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(var(--accent), var(--accent)) 0 / var(--fill, 50%) 100% no-repeat,
+              var(--surface-2);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s var(--ease-springy), box-shadow 0.2s ease;
+}
+input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.18); }
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.32);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45), 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45), 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* --- Селекты: блик рамки при фокусе, лёгкий тычок при клике --- */
+select { cursor: pointer; transition: border-color var(--speed), box-shadow var(--speed), transform 0.12s ease; }
+select:active { transform: scale(0.98); }
+.internal-page select:focus, .row select:focus, .toolbar select:focus,
+.side-panel-inner > select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(128, 128, 128, 0.18));
+}
+
+/* --- Поля ввода: свечение фокуса как у адресной строки --- */
+.internal-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):focus,
+.row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(128, 128, 128, 0.18));
+}
+input[type="color"] {
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-springy), box-shadow 0.18s ease;
+}
+input[type="color"]:hover { transform: scale(1.12); box-shadow: 0 0 0 3px var(--accent-soft, rgba(128, 128, 128, 0.18)); }
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+/* --- Скроллбары: тонкие, парящие, с акцентом при ховере --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* --- Бренд-марка лого чуть «оживает» под курсором --- */
+.brand-mark { transition: transform 0.3s var(--ease-springy); }
+.brand:hover .brand-mark { transform: rotate(-8deg) scale(1.1); }

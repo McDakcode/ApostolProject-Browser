@@ -85,10 +85,25 @@ fn main() {
             // it shares the exact same browser arguments as every tab —
             // WebView2 requires identical environment options per user-data
             // folder, and the tabs get the proxy flag.
+            // КЭШ-БАСТЕР входного документа: WebView2 кэширует index.html
+            // эвристически и после правок (dev) или обновления (release)
+            // грузил СТАРЫЙ UI со старыми ?v=-ссылками на скрипты.
+            // Входной URL обязан меняться: dev — при каждом запуске,
+            // релиз — с версией приложения. ГРАБЛЯ 29 (записана в журнал 117).
+            #[cfg(debug_assertions)]
+            let entry_url = format!(
+                "index.html?_dev={}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0)
+            );
+            #[cfg(not(debug_assertions))]
+            let entry_url = format!("index.html?v={}", env!("CARGO_PKG_VERSION"));
             // `mut` нужен только debug-сборке (инжект DEBUG_FRONTEND_JS ниже).
             #[allow(unused_mut)]
             let mut shell_builder =
-                tauri::WebviewWindowBuilder::new(app, "shell", tauri::WebviewUrl::App("index.html".into()))
+                tauri::WebviewWindowBuilder::new(app, "shell", tauri::WebviewUrl::App(entry_url.into()))
                     .title("APB — ApostolProject Browser")
                     .inner_size(1280.0, 820.0)
                     .min_inner_size(900.0, 560.0)

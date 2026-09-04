@@ -351,8 +351,9 @@ function hydrateNoteImages(root) {
 }
 
 // ---------------------------------------------------------------------
-// LaTeX (подмножество): $inline$ и $$блок$$ в превью заметок. Без внешних
-// библиотек — частая математика: дроби, корни, степени, греческие, символы.
+// LaTeX: $inline$ и $$блок$$ в превью заметок. Основной рендер — локальный
+// KaTeX (ui/vendor/katex, офлайн, без CDN); texToHtml ниже остаётся
+// фолбэком, если KaTeX не загрузился. Формулы вырезаются ДО markdown.
 // ---------------------------------------------------------------------
 
 const TEX_SYMBOLS = {
@@ -409,9 +410,20 @@ function renderPreview() {
   html = html.replace(/\u0000M(\d+)\u0000/g, (_, i) => {
     const it = store[+i];
     if (!it) return "";
+    // KaTeX (локальный, офлайн): полноценный рендер любых формул. Ошибку
+    // синтаксиса не рендерим в красный крик — показываем формулу исходником
+    // в title, как раньше. texToHtml — фолбэк без window.katex.
+    if (typeof katex !== "undefined") {
+      try {
+        return katex.renderToString(it.m, {
+          displayMode: it.b, throwOnError: true,
+          output: "htmlAndMathml",
+        });
+      } catch { /* ниже — фолбэк */ }
+    }
     return it.b
-      ? `<div class="math math-block">${texToHtml(it.m)}</div>`
-      : `<span class="math">${texToHtml(it.m)}</span>`;
+      ? `<div class="math math-block" title="${it.m.replace(/"/g, "&quot;")}">${texToHtml(it.m)}</div>`
+      : `<span class="math" title="${it.m.replace(/"/g, "&quot;")}">${texToHtml(it.m)}</span>`;
   });
   edPreview.innerHTML = html;
   hydrateNoteImages(edPreview);
