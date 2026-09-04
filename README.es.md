@@ -4,7 +4,7 @@
 
 Un navegador de escritorio centrado en la privacidad que combina **navegador + espacio de trabajo + base de conocimiento + IA** en una sola aplicación. Sin Electron: construido con **Tauri 2 / Rust** y pestañas nativas WebView2.
 
-> Fase temprana de desarrollo (v0.1.0), por ahora solo Windows.
+
 
 ## Características
 
