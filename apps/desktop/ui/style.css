@@ -874,7 +874,7 @@ body.sidebar-right .sidebar {
 }
 
 .home-search {
-  display: flex; align-items: center;
+  display: flex; align-items: center; position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -1939,7 +1939,7 @@ body.hide-tools .side-tools { display: none; }
    OMNIBOX SUGGESTIONS — выпадашка истории под адресной строкой
    ============================================================ */
 #addressForm { position: relative; }
-#omniSuggest {
+.omni-suggest {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0;
   z-index: 900;
   background: var(--bg-soft);
@@ -2455,7 +2455,7 @@ html.is-maximized #winResize .rs { pointer-events: none; }
 }
 
 /* --- Подсказки омнибокса: поп листа + лёгкий каскад пунктов --- */
-#omniSuggest { animation: apb-pop 0.18s var(--ease-bounce) backwards; transform-origin: top center; }
+.omni-suggest { animation: apb-pop 0.18s var(--ease-bounce) backwards; transform-origin: top center; }
 .omni-item {
   transition: background 0.12s ease, color 0.12s ease, transform 0.15s var(--ease-out), box-shadow 0.15s;
   animation: apb-fade 0.14s ease-out backwards;

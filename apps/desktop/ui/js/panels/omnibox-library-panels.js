@@ -380,23 +380,33 @@ const omniBox = document.getElementById("addressInput");
 const omniForm = document.getElementById("addressForm");
 const omniDrop = document.createElement("div");
 omniDrop.id = "omniSuggest";
-omniDrop.classList.add("hidden");
+omniDrop.className = "omni-suggest hidden";
 omniForm.appendChild(omniDrop);
+// Такой же дроп подсказок — для поиска на главном экране («главное меню»)
+const homeBox = document.getElementById("homeSearchInput");
+const homeForm = document.getElementById("homeSearchForm");
+const homeDrop = document.createElement("div");
+homeDrop.className = "omni-suggest hidden";
+if (homeForm) homeForm.appendChild(homeDrop);
 let omniItems = [], omniIdx = -1;
 
-function omniHide() {
-  if (omniDrop.classList.contains("hidden")) return;
-  omniDrop.classList.add("hidden");
-  omniIdx = -1;
-  // если прятали вебвью ради подсказок — возвращаем вкладку
+function omniRestoreWebviews() {
   if (typeof activeTabId !== "undefined" && activeTabId && typeof switchTab === "function") {
     const t = currentTabObj ? currentTabObj() : null;
     if (t && !t.isNew) switchTab(t.id);
   }
 }
+function omniHideDrop(drop) {
+  if (!drop || drop.classList.contains("hidden")) return;
+  drop.classList.add("hidden");
+  omniIdx = -1;
+  // если прятали вебвью ради подсказок — возвращаем вкладку
+  omniRestoreWebviews();
+}
+function omniHide() { omniHideDrop(omniDrop); }
 
-function omniHighlight() {
-  Array.from(omniDrop.children).forEach((c, i) => c.classList.toggle("sel", i === omniIdx));
+function omniHighlight(drop = omniDrop) {
+  Array.from(drop.children).forEach((c, i) => c.classList.toggle("sel", i === omniIdx));
 }
 
 // --- Suggest v3: как у нормального браузера — до 5 живых вариантов, всё ЛОКАЛЬНО
@@ -433,9 +443,9 @@ const OMNI_DOMAINS = [
 function omniPush(kind, icon, mainHtml, sub, url, title) {
   omniItems.push({ kind, icon, mainHtml, sub, url, title });
 }
-function omniBuildDom(list) {
+function omniBuildDom(drop = omniDrop) {
   // item DOM + мышь: mousedown (не click — фокус не теряем до перехода)
-  omniDrop.innerHTML = "";
+  drop.innerHTML = "";
   omniItems.forEach((v, i) => {
     const d = document.createElement("div");
     d.className = "omni-item omni-" + v.kind + (i === omniIdx ? " sel" : "");
@@ -445,17 +455,17 @@ function omniBuildDom(list) {
     d.append(ic, tx, ur);
     d.onmousedown = (e) => {
       e.preventDefault(); // чтобы не терять фокус до перехода
-      omniHide();
+      omniHideDrop(drop);
       navigateActiveTab(v.url, v.title || undefined);
     };
-    omniDrop.appendChild(d);
+    drop.appendChild(d);
   });
 }
-function omniRender(q) {
+function omniRenderFrom(inputEl, dropEl) {
 // Made by MrDuck
-  const raw = (q || "").trim();
+  const raw = String((inputEl && inputEl.value) || "").trim();
   const query = raw.toLowerCase();
-  if (!query) { omniHide(); return; }
+  if (!query) { omniHideDrop(dropEl); return; }
   // История + закладки параллельно: как в нормальном браузере подсказываем
   // и то, что уже открывал, и то, что сохранил в закладки.
   Promise.all([
@@ -533,39 +543,47 @@ function omniRender(q) {
     if (searchItem && !omniItems.includes(searchItem)) {
       omniItems[omniItems.length - 1] = searchItem;
     }
-    if (!omniItems.length) { omniHide(); return; }
+    if (!omniItems.length) { omniHideDrop(dropEl); return; }
     if (omniIdx >= omniItems.length) omniIdx = -1;
-    omniBuildDom();
+    omniBuildDom(dropEl);
     // Палитра/подсказки — это HTML, а сайт рисуется ПОВЕРХ: прячем вебвью
     if (typeof activeTabId !== "undefined" && activeTabId) {
       const t = typeof currentTabObj === "function" ? currentTabObj() : null;
       if (t && !t.isNew) invokeV2("page_hide_all", {}).catch(() => {});
     }
-    omniDrop.classList.remove("hidden");
-  }).catch(() => omniHide());
+    dropEl.classList.remove("hidden");
+  }).catch(() => omniHideDrop(dropEl));
 }
 
-omniBox.addEventListener("input", () => { omniIdx = -1; omniRender(omniBox.value); });
-omniBox.addEventListener("keydown", (e) => {
-  if (omniDrop.classList.contains("hidden")) return;
+function omniKeyNav(e, drop) {
+  if (!drop || drop.classList.contains("hidden")) return;
   if (e.key === "ArrowDown") {
     e.preventDefault();
     omniIdx = Math.min(omniIdx + 1, omniItems.length - 1);
-    omniHighlight();
+    omniHighlight(drop);
   } else if (e.key === "ArrowUp") {
     e.preventDefault();
     omniIdx = Math.max(omniIdx - 1, -1);
-    omniHighlight();
+    omniHighlight(drop);
   } else if (e.key === "Enter" && omniIdx >= 0) {
     e.preventDefault();
     const v = omniItems[omniIdx];
-    omniHide();
+    omniHideDrop(drop);
     navigateActiveTab(v.url, v.title || undefined);
   } else if (e.key === "Escape") {
-    omniHide();
+    omniHideDrop(drop);
   }
-});
+}
+omniBox.addEventListener("input", () => { omniIdx = -1; omniRenderFrom(omniBox, omniDrop); });
+omniBox.addEventListener("keydown", (e) => omniKeyNav(e, omniDrop));
 omniBox.addEventListener("blur", () => setTimeout(omniHide, 160));
+
+// --- Тот же движок подсказок — для поиска на главном экране ---
+if (homeBox && homeDrop) {
+  homeBox.addEventListener("input", () => { omniIdx = -1; omniRenderFrom(homeBox, homeDrop); });
+  homeBox.addEventListener("keydown", (e) => omniKeyNav(e, homeDrop));
+  homeBox.addEventListener("blur", () => setTimeout(() => omniHideDrop(homeDrop), 160));
+}
 
 // ---------------------------------------------------------------------
 // Command palette (Ctrl+K)

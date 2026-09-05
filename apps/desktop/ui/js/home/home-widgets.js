@@ -184,6 +184,9 @@ function showHome() {
   internalHost.classList.add("hidden");
   showEmptyState(true);
   renderHome();
+  // При возврате на главный экран поле поиска должно быть чистым
+  const hs = document.getElementById("homeSearchInput");
+  if (hs) hs.value = "";
 }
 
 // ---------------------------------------------------------------------
