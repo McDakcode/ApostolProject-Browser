@@ -11,6 +11,142 @@ let sessionTimer = null;
 // (пилюля без вебвью) сохранять нечего — фильтруем.
 const savableTabs = () => tabs.filter((t) => !t.isNew && t.url);
 
+// ЗАКРЕПЛЁННЫЕ ВКЛАДКИ (Chrome-style): t.pinned → всегда группируются ВВЕРХУ
+// списка. Управление — из КОНТЕКСТНОГО МЕНЮ (правый клик по пилюле).
+function togglePinTab(id) {
+  const t = tabs.find((x) => x.id === id);
+  if (!t || t.isNew) return;
+  t.pinned = !t.pinned;
+  // закреплённые — к началу массива (внутри своей группы — прежний порядок);
+  // группу при закреплении покидаем (пины живут отдельно)
+  if (t.pinned && t.group) { t.group = null; }
+  const pinned = tabs.filter((x) => x.pinned);
+  const rest = tabs.filter((x) => !x.pinned);
+  tabs.length = 0;
+  for (const p of pinned) tabs.push(p);
+  for (const r of rest) tabs.push(r);
+  renderTabStrip();
+  scheduleSessionSave();
+}
+
+// ---------------------------------------------------------------------------
+// ГРУППЫ-ПАПКИ ВКЛАДОК (tab groups): вкладка с t.group = id другой вкладки
+// образует группу. Рендер: пилюли одной группы заворачиваются в рамку-папку
+// (визуальное обозначение по краям); клик по заголовку папки — собрать/
+// развернуть (свернутая показывает только заголовок). Создание — ПЕРЕТАСКИ-
+// ВАНИЕМ пилюли НА другую (в drop-зоне, см. _makeTabDraggable up()).
+// t.group хранит id «хозяина» группы (первой вкладки); сам хозяин group=null.
+// ---------------------------------------------------------------------------
+const GROUP_GAP = 8;
+
+function groupOf(tab) {
+  // группа вкладки = id хозяина (или сама, если она хозяин)
+  return tab.group || null;
+}
+
+// все члены группы (включая хозяина)
+function groupMembers(gid) {
+  return tabs.filter((t) => t.id === gid || t.group === gid);
+}
+
+// вступить в группу другой вкладки (или выйти, если target null)
+function joinGroup(draggedId, targetId) {
+  const d = tabs.find((x) => x.id === draggedId);
+  const t = tabs.find((x) => x.id === targetId);
+  if (!d || !t || d.isNew || t.isNew || d.pinned || t.pinned) return false;
+  // хозяин группы цели
+  const hostId = t.group || t.id;
+  if (d.id === hostId) return false;
+  // если тащим ЦЕЛУЮ группу на чужую пилюлю — входят все члены
+  const movers = (d.group ? groupMembers(d.id === groupHostOf(d) ? d.id : d.group) : [d]);
+  for (const m of movers) m.group = hostId;
+  // пересборка: члены группы подряд, сразу после хозяина
+  const pinned = tabs.filter((x) => x.pinned);
+  const groups = new Map(); // hostId -> [members]
+  const loose = [];
+  for (const t2 of tabs) {
+    if (t2.pinned) continue;
+    const hid = t2.group || (groupMembers(t2.id).length > 1 ? t2.id : null);
+    if (hid) {
+      if (!groups.has(hid)) groups.set(hid, []);
+      groups.get(hid).push(t2);
+    } else loose.push(t2);
+  }
+  tabs.length = 0;
+  for (const p of pinned) tabs.push(p);
+  for (const [hid, mem] of groups) for (const m of mem) tabs.push(m);
+  for (const l of loose) tabs.push(l);
+  renderTabStrip();
+  scheduleSessionSave();
+  return true;
+}
+
+// хозяин группы, где состоит вкладка (для drag — тащим группу целиком)
+function groupHostOf(t) {
+  return t.group || null;
+}
+
+// выйти из группы (кнопка «вынести» в контекст-меню / разрыв папки)
+function leaveGroup(id) {
+  const t = tabs.find((x) => x.id === id);
+  if (!t) return;
+  const wasHost = !t.group && groupMembers(t.id).length > 1;
+  if (wasHost) {
+    // распускание группы хозяина: все члены становятся свободными
+    for (const m of groupMembers(t.id)) m.group = null;
+  } else {
+    t.group = null;
+    // если после ухода группа пустеет — чисто
+    const hid = t.group || null;
+  }
+  renderTabStrip();
+  scheduleSessionSave();
+}
+
+// свернутость групп: Set<hostId>
+let _collapsedGroups = new Set();
+
+// контекстное меню пилюли (правый клик): Chrome-набор
+function tabContextMenu(ev, tab) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  // старое меню убрать
+  document.getElementById("apbTabMenu")?.remove();
+  const m = document.createElement("div");
+  m.id = "apbTabMenu";
+  m.className = "apb-tabmenu";
+  const mk = (label, fn, danger) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (danger) b.classList.add("danger");
+    b.onclick = (e) => { e.stopPropagation(); m.remove(); fn(); };
+    m.appendChild(b);
+  };
+  if (!tab.isNew) {
+    mk(tab.pinned ? "Открепить вкладку" : "Закрепить вкладку", () => togglePinTab(tab.id));
+    mk("Переименовать…", () => renameTab(tab));
+    const inGroup = tab.group || groupMembers(tab.id).length > 1;
+    if (inGroup) mk("Распустить группу", () => leaveGroup(tab.id));
+    mk("Закрыть вкладку", () => closeTab(tab.id));
+    mk("Закрыть другие вкладки", () => {
+      const keep = new Set([tab.id, ...tabs.filter((t) => t.isNew).map((t) => t.id)]);
+      for (const t of [...tabs]) if (!keep.has(t.id)) closeTabNow(t.id);
+      renderTabStrip();
+      scheduleSessionSave();
+    }, true);
+  } else {
+    mk("Закрыть вкладку", () => closeTab(tab.id));
+  }
+  document.body.appendChild(m);
+  const mw = 210, mh = m.offsetHeight || 160;
+  m.style.left = Math.min(ev.clientX, window.innerWidth - mw - 8) + "px";
+  m.style.top = Math.min(ev.clientY, window.innerHeight - mh - 8) + "px";
+  const close = (e) => {
+    if (!m.contains(e.target)) { m.remove(); document.removeEventListener("pointerdown", close); }
+  };
+  setTimeout(() => document.addEventListener("pointerdown", close), 0);
+}
+
 // ---------------------------------------------------------------------
 // Workspaces — named tab groups per profile (Zen-style pills)
 // ---------------------------------------------------------------------
@@ -134,7 +270,9 @@ async function persistSessionNow() {
   try {
     await invoke("session_save", {
       session: {
-        tabs: st.map((t) => ({ url: t.url, label: t.label })),
+        // group = ИНДЕКС вкладки-хозяина папки в этом списке (id после
+        // перезапуска новые — ремап по индексу, см. apbRemapGroups)
+        tabs: st.map((t, i) => ({ url: t.url, label: t.label, pinned: !!t.pinned, group: t.group ? st.findIndex((x) => x.id === t.group) : null })),
         active: Math.max(0, st.findIndex((t) => t.id === activeTabId)),
       },
     });
@@ -160,33 +298,209 @@ function hostOf(url) {
   try { return hostnameOf(url); } catch { return url; }
 }
 
-function dlRowEl(item) {
+// Человекочитаемый размер: 45 МБ / 1.2 ГБ / 812 КБ
+function dlFmt(b) {
+  if (!b || b < 0) return "";
+  if (b < 1024) return b + " Б";
+  const kb = b / 1024;
+  if (kb < 1024) return (kb >= 100 ? Math.round(kb) : kb.toFixed(1)) + " КБ";
+  const mb = kb / 1024;
+  if (mb < 1024) return (mb >= 100 ? Math.round(mb) : mb.toFixed(1)) + " МБ";
+  const gb = mb / 1024;
+  return gb.toFixed(2) + " ГБ";
+}
+function dlSizeText(it) {
+  if (it.status === "downloading" && it.total > 0) return dlFmt(it.recv) + " / " + dlFmt(it.total);
+  if (it.status === "downloading" && it.recv > 0) return dlFmt(it.recv);
+  if ((it.status === "done" || it.status === "interrupted") && it.total > 0) return dlFmt(it.total);
+  return "";
+}
+
+function dlRowEl(item, isNew) {
   const li = document.createElement("li");
-  const cls = item.status === "done" ? "st-done" : item.status === "failed" ? "st-failed" : "st-active";
-  li.innerHTML = `<div class="dl-main"><div class="dl-nm"></div><div class="meta"><span class="dl-chip ${cls}"></span> <span class="dl-host"></span></div></div>`;
+  if (isNew) li.className = "dl-new";
+  li.classList.add("dl-row");
+  const cls = item.status === "done" ? "st-done"
+    : item.status === "failed" ? "st-failed"
+    : item.status === "cancelled" ? "st-cancelled" : "st-active";
+  li.innerHTML =
+    `<div class="dl-main">` +
+      `<div class="dl-nm"></div>` +
+      `<div class="dl-sub">` +
+        `<span class="dl-chip ${cls}"></span> ` +
+        `<span class="dl-bar"><span class="dl-bar-fill${typeof item.progress === "number" && item.progress >= 0 ? "" : " anim"}"></span></span> ` +
+        `<span class="dl-pct"></span>` +
+        `<span class="dl-speed"></span>` +
+      `</div>` +
+      `<div class="dl-sub2"><span class="dl-meta-hint"></span><canvas class="dl-spark" width="96" height="22"></canvas></div>` +
+    `</div>` +
+    `<div class="dl-acts">` +
+      `<button class="dl-act dl-cancel" title="Отменить загрузку (файл будет удалён)">✕</button>` +
+      `<button class="dl-act dl-retry" title="Повторить загрузку">↻</button>` +
+    `</div>`;
+  li.dataset.dlId = item.id;
   li.querySelector(".dl-nm").textContent = item.file_name.length > 42
     ? item.file_name.slice(0, 30) + "…" + item.file_name.slice(-10)
     : item.file_name;
-  li.querySelector(".dl-chip").textContent =
-    item.status === "done" ? "готово" : item.status === "failed" ? "ошибка" : "загружается…";
-  li.querySelector(".dl-host").textContent = hostOf(item.url);
   li.title = item.path;
   li.onclick = async () => {
     const dir = item.path.replace(/[\\/][^\\/]+$/, "");
     invoke("open_in_system", { url: dir }).catch(() => {});
   };
+  const chip = li.querySelector(".dl-chip");
+  const fill = li.querySelector(".dl-bar-fill");
+  const pct = li.querySelector(".dl-pct");
+  const speedEl = li.querySelector(".dl-speed");
+  const hintEl = li.querySelector(".dl-meta-hint");
+  const spark = li.querySelector(".dl-spark");
+  // история скоростей (Б/с) для спарклайна — на строке, живёт с ней
+  li._speedHist = [];
+  li._lastRecv = 0;
+  li._lastT = 0;
+  // обновление строки БЕЗ пересоздания (анти-мерцание)
+  li._update = (it) => {
+    chip.textContent =
+      it.status === "done" ? "готово"
+      : it.status === "failed" ? "ошибка"
+      : it.status === "cancelled" ? "отменено"
+      : it.status === "interrupted" ? "остановлено"
+      : "загружается…";
+    chip.className = "dl-chip " + (it.status === "done" ? "st-done"
+      : it.status === "failed" ? "st-failed"
+      : it.status === "cancelled" || it.status === "interrupted" ? "st-cancelled" : "st-active");
+    // ✕ — только у идущей закачки; ↻ — у прерванной/ошибки/готово
+    btnX.style.display = it.status === "downloading" ? "" : "none";
+    btnR.style.display = it.status === "downloading" ? "none" : "";
+    hintEl.textContent = hostOf(it.url);
+    const bar = li.querySelector(".dl-bar");
+    if (it.status === "downloading") {
+      bar.style.display = "";
+      // скорость: дельта байт / дельта времени
+      const now = performance.now();
+      if (li._lastT && it.recv >= li._lastRecv) {
+        const bps = (it.recv - li._lastRecv) * 1000 / Math.max(1, now - li._lastT);
+        if (bps > 0) {
+          li._speedHist.push(bps);
+          if (li._speedHist.length > 24) li._speedHist.shift();
+        }
+      }
+      li._lastRecv = it.recv;
+      li._lastT = now;
+      speedEl.textContent = dlSpeedText(it, li);
+      drawSpark(spark, li._speedHist, true);
+      li.classList.add("st-spark-on");
+      // полоса: scaleX (GPU-композитор — 200 Гц без layout-мусора), НЕ width
+      const setFill = (ratio) => {
+        fill.classList.remove("anim");
+        fill.style.transform = "scaleX(" + Math.max(0, Math.min(1, ratio)) + ")";
+      };
+      if (typeof it.progress === "number" && it.progress >= 0) {
+        setFill(it.progress / 100);
+      } else if (it.total > 0) {
+        setFill(it.recv / it.total);
+      } else {
+        fill.classList.add("anim");
+      }
+      const sizeTxt = dlSizeText(it);
+      if (sizeTxt) pct.textContent = sizeTxt;
+    } else {
+      bar.style.display = "none";
+      speedEl.textContent = "";
+      li.classList.remove("st-spark-on");
+      const sizeTxt = dlSizeText(it);
+      pct.textContent = it.status === "done" && sizeTxt ? sizeTxt
+        : it.status === "done" ? "готово" : "";
+      // финал: зафиксировать график (зелёный) — он остаётся видимым
+      drawSpark(spark, li._speedHist, false);
+      li.classList.toggle("st-row-done", it.status === "done");
+    }
+  };
+  // ✕ — отменить (только ИДУЩАЯ закачка; у готовых файлов кнопки нет —
+  // готовые файлы юзер удаляет сам в папке)
+  const btnX = li.querySelector(".dl-cancel");
+  const btnR = li.querySelector(".dl-retry");
+  btnX.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (btnX.disabled) return;
+    invoke("download_cancel", { id: item.id, path: item.path }).catch(() => {});
+  });
+  // ↻ — повторить/продолжить (остановлено после перезапуска, ошибка, готово)
+  btnR.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    invoke("download_retry", { id: item.id, url: item.url, path: item.path }).catch(() => {});
+    li.classList.remove("st-row-done");
+    li._speedHist = [];
+    li._lastRecv = 0; li._lastT = 0;
+    chip.textContent = "загружается…"; chip.className = "dl-chip st-active";
+    li.querySelector(".dl-bar").style.display = "";
+    fill.classList.remove("done", "anim");
+    fill.style.transform = "scaleX(0)";
+    pct.textContent = "";
+  });
+  // Кнопки по статусу: ✕ виден ТОЛЬКО пока качается, ↻ — для всего остального
+  li._update(item);
   return li;
 }
 
-function renderDownloads() {
+// Скорость закачки: «4.2 МБ/с» (из последней пары замеров)
+function dlSpeedText(it, li) {
+  if (!li || !li._speedHist || !li._speedHist.length) return "";
+  const bps = li._speedHist[li._speedHist.length - 1];
+  return dlFmt(bps) + "/с";
+}
+
+// Мини-график скорости (спарклайн): полилиния + мягкое свечение
+function drawSpark(canvas, hist, live) {
+  const ctx = canvas.getContext && canvas.getContext("2d");
+  if (!ctx) return;
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!hist || hist.length < 2) return;
+  const max = Math.max(...hist, 1);
+  ctx.beginPath();
+  for (let i = 0; i < hist.length; i++) {
+    const x = (i / (hist.length - 1)) * (w - 2) + 1;
+    const y = h - 2 - (hist[i] / max) * (h - 4);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = live ? "#7fb0ff" : "#43c17a";
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  // точка «сейчас» на живом графике
+  if (live) {
+    const lx = w - 1;
+    const ly = h - 2 - (hist[hist.length - 1] / max) * (h - 4);
+    ctx.beginPath();
+    ctx.arc(lx - 1.5, ly, 2, 0, Math.PI * 2);
+    ctx.fillStyle = "#9fd0ff";
+    ctx.fill();
+  }
+}
+
+const dlRowMap = new Map(); // id -> li: точечное обновление без мерцания
+
+function renderDownloads(newIds) {
   const ul = document.getElementById("dlList");
   if (!ul) return;
+  dlRowMap.clear();
   ul.innerHTML = "";
   if (!dlItems.length) {
     ul.innerHTML = '<li class="empty">Загрузок пока нет</li>';
     return;
   }
-  for (const it of dlItems) ul.appendChild(dlRowEl(it));
+  for (const it of dlItems) {
+    const li = dlRowEl(it, newIds && newIds.has(it.id));
+    dlRowMap.set(it.id, li);
+    ul.appendChild(li);
+  }
+}
+
+// Новая загрузка → окно Загрузок открывается САМО (как в норм браузерах:
+// вся жизнь загрузки — в списке Загрузки, без отдельных карточек-тостов).
+function ensureDownloadsOpen() {
+  const railBtn = document.querySelector('.rail-item[data-tab="downloads"]');
+  if (railBtn && !railBtn.classList.contains("active")) railBtn.click();
 }
 
 async function refreshDownloads() {
@@ -198,11 +512,32 @@ async function refreshDownloads() {
 
 try {
 // Made by MrDuck
+  // История загрузок живёт на диске (downloads-log.json) — заполняем
+  // список сразу при старте, не ждём открытия панели.
+  refreshDownloads();
+  // dl-update: новая закачка → открыть панель; прогресс/статус — прямо
+  // в строке файла (chip + полоса + %). Никаких тостов.
   window.__TAURI__.event.listen("dl-update", (e) => {
     const it = e.payload;
+    if (!it || !it.id) return;
     const i = dlItems.findIndex((d) => d.id === it.id || (d.path === it.path && d.status === "downloading"));
+    // эхо-«downloading» ПОСЛЕ финального статуса — пропускаем
+    // (наблюдатель прогресса может успеть эмитнуть после Finished).
+    // Повтор (retry) шлёт progress 0 — его пропустить нельзя.
+    if (i >= 0 && dlItems[i].status !== "downloading" && it.status === "downloading"
+        && (typeof it.progress !== "number" || it.progress < 0)) return;
+    const isNewItem = i < 0;
     if (i >= 0) dlItems[i] = it; else dlItems.unshift(it);
-    renderDownloads();
+    // АНТИ-МЕРЦАНИЕ: существующая строка обновляется точечно (_update),
+    // полный рендер — только для НОВОЙ загрузки (с анимацией въезда).
+    const existing = dlRowMap.get(it.id);
+    if (existing && existing.isConnected && !isNewItem) {
+      existing._update(it);
+    } else {
+      const newIds = new Set([it.id]);
+      renderDownloads(isNewItem ? newIds : null);
+      if (isNewItem && it.status === "downloading") ensureDownloadsOpen();
+    }
   });
 } catch { /* events unavailable */ }
 
@@ -211,6 +546,17 @@ document.getElementById("dlOpenFolder")?.addEventListener("click", async () => {
     const dir = await invoke("downloads_dir");
     invoke("open_in_system", { url: dir }).catch(() => {});
   } catch (e) { alert(e); }
+});
+
+// «✕ История» — очистить СПИСОК загрузок (файлы на диске не трогаем).
+document.getElementById("dlClearHistory")?.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  try {
+    await invoke("downloads_clear");
+    dlItems = [];
+    renderDownloads();
+    toast("История загрузок очищена (файлы не удалены)", "ok");
+  } catch (err) { toast("Не удалось очистить историю: " + err, "err"); }
 });
 
 function scheduleSessionSave() {
@@ -398,51 +744,45 @@ function renderTabStrip() {
   const prevIds = _prevTabIds;
   const curIds = new Set();
   scroll.innerHTML = "";
-  for (const tab of tabs) {
+  // закреплённые — первыми (sort стабилен: порядок внутри групп сохраняется)
+  const ordered = [...tabs].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const drawn = new Set();
+  for (const tab of ordered) {
+    if (drawn.has(tab.id)) continue;
     curIds.add(tab.id);
-    const pill = document.createElement("div");
-    pill.className = "tab-pill" + (tab.id === activeTabId ? " active" : "") +
-      ((splitPair && (tab.id === splitPair.left || tab.id === splitPair.right)) ? " split" : "");
-    if (!prevIds.has(tab.id)) pill.classList.add("tab-appear");
-    pill.dataset.tabId = String(tab.id);
-    pill.title = tab.url;
-    const fav = document.createElement("span");
-    fav.className = "tab-fav";
-    if (tab.isNew) {
-      fav.textContent = "+";
-      fav.classList.add("tab-fav-new");
-    } else {
-      fav.textContent = ((tab.label || "?").trim()[0] || "?").toUpperCase();
+    // ГРУППА-ПАПКА: пилюли одной группы в общей рамке с заголовком
+    const hostId = tab.group || (groupMembers(tab.id).length > 1 ? tab.id : null);
+    if (hostId && !tab.pinned) {
+      const members = ordered.filter((t) => t.id === hostId || t.group === hostId);
+      members.forEach((t) => { drawn.add(t.id); curIds.add(t.id); });
+      const g = document.createElement("div");
+      g.className = "tab-group" + (_collapsedGroups.has(hostId) ? " collapsed" : "");
+      g.dataset.groupId = String(hostId);
+      const head = document.createElement("div");
+      head.className = "tab-group-head";
+      const host = tabs.find((t) => t.id === hostId);
+      head.textContent = "📁 " + (host && host.label ? String(host.label).slice(0, 18) : "Папка") +
+        " · " + members.length;
+      head.title = "Свернуть/развернуть папку вкладок";
+      head.onclick = () => {
+        if (_collapsedGroups.has(hostId)) _collapsedGroups.delete(hostId);
+        else _collapsedGroups.add(hostId);
+        renderTabStrip();
+      };
+      head.oncontextmenu = (ev) => tabContextMenu(ev, host || tab);
+      g.appendChild(head);
+      const inner = document.createElement("div");
+      inner.className = "tab-group-body";
+      g.appendChild(inner);
+      if (!_collapsedGroups.has(hostId)) {
+        for (const t2 of members) createTabPill(t2, inner, prevIds);
+      } else {
+        // свёрнуто: показываем пилюли-заглушки? нет — только заголовок
+      }
+      scroll.appendChild(g);
+      continue;
     }
-    // Настоящий фавикон сайта: тянем /favicon.ico САМОГО сайта (без сторонних
-    // сервисов типа Google s2 — приватность). Буква остаётся под картинкой
-    // как фолбэк, если иконки нет. Иконка запрашивается и для СПЯЩИХ вкладок
-    // (юзер хочет логотип всегда), повторные 404 не дёргаются (кэш).
-    if (!tab.url.startsWith("apb://")) {
-      const img = document.createElement("img");
-      img.className = "fav-img";
-      img.loading = "lazy";
-      img.alt = "";
-      if (favAttach(img, tab.url)) fav.appendChild(img);
-    }
-    const title = document.createElement("span");
-    title.className = "tab-pill-title";
-    title.textContent = tab.label;
-    // Двойной клик по названию — переименовать вкладку
-    title.ondblclick = (ev) => {
-      ev.stopPropagation();
-      if (_tabDragSuppressed) return;
-      renameTab(tab);
-    };
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "tab-pill-close";
-    closeBtn.textContent = "×";
-    closeBtn.onclick = (ev) => { ev.stopPropagation(); closeTab(tab.id); };
-    pill.append(fav, title, closeBtn);
-    pill.onclick = () => { if (_tabDragSuppressed) return; switchTab(tab.id); };
-    scroll.appendChild(pill);
-    pill._tabRef = tab;
-    _makeTabDraggable(pill);
+    createTabPill(tab, scroll, prevIds);
   }
   _prevTabIds = curIds; // запоминаем состав для следующего рендера
   const sb = document.getElementById("splitBtn");
@@ -454,6 +794,69 @@ function renderTabStrip() {
     for (const child of [...scroll.children]) h.appendChild(child.cloneNode(true));
   }
   updateNavBtns();
+}
+
+// пилюля одной вкладки (в указанный контейнер) — вынесено из renderTabStrip
+function createTabPill(tab, host, prevIds) {
+  const pill = document.createElement("div");
+  pill.className = "tab-pill" + (tab.id === activeTabId ? " active" : "") +
+    (tab.pinned ? " pinned" : "") +
+    ((splitPair && (tab.id === splitPair.left || tab.id === splitPair.right)) ? " split" : "");
+  if (!prevIds.has(tab.id)) pill.classList.add("tab-appear");
+  pill.dataset.tabId = String(tab.id);
+  pill.title = tab.url;
+  const fav = document.createElement("span");
+  fav.className = "tab-fav";
+  if (tab.isNew) {
+    fav.textContent = "+";
+    fav.classList.add("tab-fav-new");
+  } else {
+    fav.textContent = ((tab.label || "?").trim()[0] || "?").toUpperCase();
+  }
+  // Настоящий фавикон сайта: тянем /favicon.ico САМОГО сайта (без сторонних
+  // сервисов типа Google s2 — приватность). Буква остаётся под картинкой
+  // как фолбэк, если иконки нет. Иконка запрашивается и для СПЯЩИХ вкладок
+  // (юзер хочет логотип всегда), повторные 404 не дёргаются (кэш).
+  if (!tab.url.startsWith("apb://")) {
+    const img = document.createElement("img");
+    img.className = "fav-img";
+    img.loading = "lazy";
+    img.alt = "";
+    if (favAttach(img, tab.url)) fav.appendChild(img);
+  }
+  const title = document.createElement("span");
+  title.className = "tab-pill-title";
+  title.textContent = tab.label;
+  // Двойной клик по названию — переименовать вкладку
+  title.ondblclick = (ev) => {
+    ev.stopPropagation();
+    if (_tabDragSuppressed) return;
+    renameTab(tab);
+  };
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "tab-pill-close";
+  closeBtn.textContent = "×";
+  closeBtn.onclick = (ev) => { ev.stopPropagation(); closeTab(tab.id); };
+  // ЗАКРЕПЛЁННАЯ пилюля: фавикон И НАЗВАНИЕ (компактно) + мелкая 📌-метка;
+  // ✕ нет — закрыть/открепить можно из контекст-меню правого клика.
+  if (tab.isNew) {
+    pill.append(fav, title, closeBtn);
+  } else if (tab.pinned) {
+    const pinMark = document.createElement("span");
+    pinMark.className = "tab-pill-pinmark";
+    pinMark.textContent = "📌";
+    pinMark.title = "Закреплено — правый клик: открепить";
+    pill.append(fav, title, pinMark);
+  } else {
+    pill.append(fav, title, closeBtn);
+  }
+  pill.onclick = () => { if (_tabDragSuppressed) return; switchTab(tab.id); };
+  // ПРАВЫЙ КЛИК — контекст-меню (закрепить/переименовать/группа/закрыть)
+  pill.oncontextmenu = (ev) => tabContextMenu(ev, tab);
+  host.appendChild(pill);
+  pill._tabRef = tab;
+  if (!tab.pinned) _makeTabDraggable(pill); // закреплённые не таскаются
+  return pill;
 }
 
 function hostnameOf(url) {
@@ -520,7 +923,13 @@ function _makeTabDraggable(pill) {
     startX = e.clientX; startY = e.clientY; dragging = false;
 
     let lastY = 0;
-// Made by MrDuck
+    let hoverTarget = null; // пилюля-цель для drop-в-группу (под курсором)
+    const setHover = (el) => {
+      if (hoverTarget === el) return;
+      hoverTarget?.classList.remove("tab-drop-target");
+      hoverTarget = el;
+      hoverTarget?.classList.add("tab-drop-target");
+    };
     const move = (ev) => {
       if (!dragging) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
@@ -538,6 +947,15 @@ function _makeTabDraggable(pill) {
         if (d < bd) { bd = d; cIdx = i; }
       });
       applyOffsets();
+      // DROP-В-ГРУППУ: если курсок ПОВЕРХ другой пилюли (центры близки)
+      // — она подсвечивается рамкой; отпускание создаст папку.
+      const tgt = items[cIdx] !== pill ? items[cIdx] : null;
+      const tRef = tgt && tgt._tabRef;
+      if (tRef && !tRef.pinned && !tRef.isNew && bd < hPill * 0.55) {
+        setHover(tgt);
+      } else {
+        setHover(null);
+      }
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
@@ -545,6 +963,19 @@ function _makeTabDraggable(pill) {
       if (!dragging) return;
       _tabDragSuppressed = true;
       setTimeout(() => { _tabDragSuppressed = false; }, 260);
+      const target = hoverTarget;
+      setHover(null);
+      // создали папку — никакой переупорядочки, сразу перерисовать
+      if (target && target._tabRef) {
+        pill.classList.remove("dragging");
+        pill.style.transition = "";
+        pill.style.transform = "";
+        for (const c of pill.parentElement.children) {
+          if (c !== pill) { c.style.transition = ""; c.style.transform = ""; }
+        }
+        joinGroup(pill._tabRef.id, target._tabRef.id);
+        return;
+      }
       // Плавная доводка пилюли в её слот (без «прыжка» при отпускании)
       const targetY = slots[cIdx].top - baseTop;
       pill.style.transition = "transform 0.18s cubic-bezier(0.33,1,0.68,1)";
@@ -846,12 +1277,37 @@ document.getElementById("navReload").addEventListener("click", () => {
 
 /** Спящая вкладка: есть в списке, но вебвью не создаётся (старт с главного
  *  экрана). Просыпается при клике — тогда открывается сайт. */
-function addSleepingTab(url, label) {
+function addSleepingTab(url, label, pinned, group) {
   tabs.unshift({
     id: makeTabId(), url,
     label: smartTitle(url, label),
     hist: [url], hi: 0, asleep: true,
+    pinned: !!pinned, // 📌 из прошлой сессии
+    group: group || null, // 📁 группа-папка из прошлой сессии
   });
+}
+
+// Ремап групп после восстановления сессии: сохраняли индекс хозяина в
+// исходном списке sub; вкладки вставлялись unshift-ом (порядок обратный),
+// id новые. Перелинковываем t.group с индекса на НОВЫЙ id хозяина.
+function apbRemapGroups(sub) {
+  // sub[i] → вкладка с новым id в tabs: sub.length-1-i (обратный unshift)
+  const idOf = (origIdx) => {
+    const t = tabs[tabIndexOfOrig(sub, origIdx)];
+    return t ? t.id : null;
+  };
+  for (let i = 0; i < sub.length; i++) {
+    const rec = sub[i];
+    if (rec.group == null) continue;
+    const hostNewId = idOf(rec.group);
+    if (!hostNewId) continue;
+    const meIdx = tabIndexOfOrig(sub, i);
+    if (tabs[meIdx] && hostNewId !== tabs[meIdx].id) tabs[meIdx].group = hostNewId;
+  }
+}
+// позиция в tabs восстановленной записи i из sub (unshift → reverse)
+function tabIndexOfOrig(sub, i) {
+  return sub.length - 1 - i;
 }
 
 /** Разбудить спящую вкладку: открыть вебвью и подменить временный id. */
@@ -958,14 +1414,15 @@ async function switchTab(id) {
 
 function closeTab(id) {
   // Плавный уход: пилюли (сайдбар + зеркальная верхняя лента) схлопываются
-  // с анимацией, реальное закрытие — через 150мс. Повторный клик по той же
+  // с анимацией, реальное закрытие — через 180мс (анимация 0.17s + 10мс
+  // запас, чтобы кадр успел дорисоваться). Повторный клик по той же
   // (уже «уходящей») пилюле не ждёт второй раз. Если пилюли нет в DOM —
   // закрываем сразу.
   const attr = `[data-tab-id="${CSS.escape(String(id))}"]`;
   const pills = document.querySelectorAll(".tab-pill" + attr);
   if (pills.length && !pills[0].classList.contains("tab-leave")) {
     pills.forEach((el) => el.classList.add("tab-leave"));
-    setTimeout(() => closeTabNow(id), 150);
+    setTimeout(() => closeTabNow(id), 180);
     return;
   }
   closeTabNow(id);

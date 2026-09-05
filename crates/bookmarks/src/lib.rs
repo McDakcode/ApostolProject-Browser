@@ -152,6 +152,58 @@ impl BookmarkStore {
         ids.into_iter().map(|id| self.get(id)).collect()
     }
 
+    /// Все закладки (панель «Закладки» рисует дерево папок поверх).
+    pub fn all(&self) -> Result<Vec<Bookmark>> {
+        let ids: Vec<String> = self.store.with_conn(|c| {
+            let mut stmt =
+                c.prepare("SELECT id FROM bookmarks ORDER BY created_at DESC")?;
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })?;
+        Ok(ids
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .filter_map(|id| self.get(id).ok())
+            .collect())
+    }
+
+    /// Все папки (для дерева в панели «Закладки»).
+    pub fn folders(&self) -> Result<Vec<Folder>> {
+        let rows = self.store.with_conn(|c| {
+            let mut stmt = c.prepare("SELECT id, parent_id, name FROM bookmark_folders")?;
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, parent, name)| {
+                Some(Folder {
+                    id: Uuid::parse_str(&id).ok()?,
+                    parent_id: parent.and_then(|p| Uuid::parse_str(&p).ok()),
+                    name,
+                })
+            })
+            .collect())
+    }
+
+    /// Удалить закладку (кнопка ✕ в строке панели).
+    pub fn delete(&self, id: Uuid) -> Result<()> {
+        self.store.with_conn(|c| {
+            c.execute(
+                "DELETE FROM bookmark_tags WHERE bookmark_id = ?1",
+                [id.to_string()],
+            )?;
+            c.execute("DELETE FROM bookmarks WHERE id = ?1", [id.to_string()])
+        })?;
+        Ok(())
+    }
+
     pub fn get(&self, id: Uuid) -> Result<Bookmark> {
         let row = self.store.with_conn(|c| {
             c.query_row(

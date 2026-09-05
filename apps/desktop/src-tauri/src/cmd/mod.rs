@@ -36,6 +36,7 @@ pub mod session;
 pub mod update;
 pub mod userfiles;
 pub mod vault;
+pub mod windowfx;
 pub mod workspaces;
 
 pub(crate) use ai::*;
@@ -54,6 +55,7 @@ pub(crate) use session::*;
 pub(crate) use update::*;
 pub(crate) use userfiles::*;
 pub(crate) use vault::*;
+pub(crate) use windowfx::*;
 pub(crate) use workspaces::*;
 
 // Made by MrDuck

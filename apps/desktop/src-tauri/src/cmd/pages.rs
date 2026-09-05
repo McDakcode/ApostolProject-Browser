@@ -929,30 +929,42 @@ async fn page_open_impl(
                                 .unwrap_or_default(),
                             path: final_path.to_string_lossy().into_owned(),
                             status: "downloading".into(),
+                            progress: -1,
+                            recv: 0,
+                            total: 0,
+                            source: webview.label().to_string(),
                         };
+                        append_backend_log(&format!("[dl] requested {} -> {}", item.url, item.path));
                         if let Ok(mut log) = handle.state::<DownloadsLog>().inner().0.lock() {
                             log.push(item.clone());
                         }
-                        let _ = handle.emit("dl-update", item);
-                        true
+                        if let Some(dl_log) = handle.try_state::<DownloadsLog>() {
+                            dl_log.save_to_disk(handle);
+                        }
+                        let _ = handle.emit("dl-update", item.clone());
+                        // Собственный движок закачки (ureq): отдаём WebView2
+                        // false = SetCancel — браузер вообще НЕ начинает
+                        // качать (и не держит файл). Тянет файл наш поток:
+                        // честный байтовый прогресс в dl-update, и главное —
+                        // ✕ в списке загрузок убивает поток мгновенно
+                        // (WebView2 в полёте не прерывается, грабля wry).
+                        crate::cmd::downloads::spawn_own_download(
+                            &handle,
+                            item.id.clone(),
+                            item.url.clone(),
+                            item.path.clone(),
+                            item.source.clone(),
+                        );
+                        false
                     }
-                    tauri::webview::DownloadEvent::Finished { url, path, success } => {
-                        let status = if success { "done" } else { "failed" };
-                        let mut updated: Option<DownloadItem> = None;
-                        if let Ok(mut log) = handle.state::<DownloadsLog>().inner().0.lock() {
-                            let pos = log.iter().rposition(|d| {
-                                d.status == "downloading"
-                                    && (path.as_ref().map(|p| p.to_string_lossy() == d.path).unwrap_or(false)
-                                        || d.url == url.to_string())
-                            });
-                            if let Some(i) = pos {
-                                log[i].status = status.into();
-                                updated = Some(log[i].clone());
-                            }
-                        }
-                        if let Some(item) = updated {
-                            let _ = handle.emit("dl-update", item);
-                        }
+                    tauri::webview::DownloadEvent::Finished { url, path: _, success } => {
+                        // НИЧЕГО не делаем: все закачки ведёт собственный
+                        // ureq-движок, а WebView2 мы отменяем на старте
+                        // (SetCancel). Этот event стреляет именно от того
+                        // SetCancel (StateChanged → state=INTERRUPTED,
+                        // success=false) — старый код здесь ПОМЕЧАЛ живую
+                        // ureq-закачку «failed». Статусы ставит сам движок.
+                        append_backend_log(&format!("[dl] webview finished (cancelled-at-start) url={} ok={}", url, success));
                         true
                     }
                     _ => true,

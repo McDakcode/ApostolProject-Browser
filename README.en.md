@@ -2,21 +2,28 @@
 
 [Русский](README.md) | **English** | [中文](README.zh-CN.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
 
-A privacy-focused desktop browser that combines **browser + workspace + knowledge base + AI** in one app. Not Electron — built on **Tauri 2 / Rust** with native WebView2 tabs.
-
-> Early development (v0.1.0), Windows only for now.
+A privacy-focused desktop browser that combines **browser + workspace + knowledge base + AI** in one app. Not Electron — built on **Tauri 2 / Rust** with native WebView2 tabs. Windows 10/11.
 
 ## Features
 
-- **Tabs** — native WebView2 tabs in a single shell window: sleeping tabs, drag & drop, split view, favicons, collapsible sidebar
-- **Notes** — Markdown editor with preview, images, freehand drawing, LaTeX subset (`$...$`), folders, `.md` export
-- **Knowledge graph** — infinite canvas with physics layout, note cards, links, undo/redo, PNG export
-- **Workspaces & profiles** — isolated profiles by storage folder, per-workspace tab sets
+- **Tabs** — native WebView2 tabs in a single shell window: sleeping tabs, drag & drop, pinning 📌, tab folders (groups), split view, real favicons and page titles, collapsible sidebar, context menus
+- **Real-traffic privacy** — built-in filtering proxy blocks trackers/ads/malware by domain; HTTPS-only upgrade, cookie and Referer control, WebRTC isolation, DoH/DNS, external proxy chains (up to 3 hops), per-site exceptions, live blocking stats
+- **Notes** — Markdown editor with preview, images (including SVG), freehand drawing, LaTeX subset (`$...$`), folders, `.md` export
+- **Knowledge graph** — infinite canvas on a real `<canvas>` with physics layout, note cards, links, undo/redo, PNG export including block contents
+- **Workspaces & profiles** — isolated profiles by storage folder, per-workspace tab sets, anonymous mode
 - **Vault** — password manager with AES-256-GCM encryption and Argon2id key derivation, CSV import/export
-- **History & bookmarks** — SQLite-backed, per-profile history, omnibox suggestions
+- **Bookmarks & history** — SQLite-backed, per-profile history, bookmark folders, `javascript:` bookmarkets, omnibox suggestions
 - **Command palette** — Ctrl+K, English/Russian keyword search
 - **AI chat** — OpenAI-compatible providers and local Ollama
-- **Downloads interception**, dark/light themes, UI customization, onboarding tour
+- **Downloads** — dedicated engine with real cancellation, retry, and a progress bar with speed and a graph
+- **Localization** — Russian and English interfaces
+- Dark/light themes, smart site dark theme, UI customization (`.apbtheme`), window transparency/glass, onboarding tour
+
+## Roadmap
+
+1. Full extension runtime (content scripts by URL masks)
+2. Localization beyond RU/EN
+3. Custom installer (full install control in Rust)
 
 ## Tech stack
 
@@ -45,17 +52,9 @@ cargo build
 apps/desktop/
   src-tauri/        Rust backend (shell, pages, cmd/* domain commands)
   ui/               Shell frontend (index.html + js modules, loaded in order)
-crates/             Domain crates: notes, graph data, vault, privacy,
+crates/             Domain crates: notes, canvas, vault, privacy,
                     network, history, bookmarks, profiles, extensions, ai...
 ```
-
-## Roadmap
-
-1. Apply privacy engine to real traffic (tracker blocking / DNS / proxy layer)
-2. Extension runtime (content scripts)
-3. Localization beyond Russian
-4. Auto-updates (tauri-plugin-updater + GitHub Releases)
-5. NSIS installer
 
 ## Credits
 

@@ -2,21 +2,28 @@
 
 [Русский](README.md) | [English](README.en.md) | [中文](README.zh-CN.md) | [Español](README.es.md) | [Deutsch](README.de.md) | **Français**
 
-Un navigateur de bureau axé sur la confidentialité qui réunit **navigateur + espace de travail + base de connaissances + IA** dans une seule application. Pas d'Electron — construit avec **Tauri 2 / Rust** et des onglets WebView2 natifs.
-
-> Début de développement (v0.1.0), Windows uniquement pour l'instant.
+Un navigateur de bureau axé sur la confidentialité qui réunit **navigateur + espace de travail + base de connaissances + IA** dans une seule application. Pas d'Electron — construit avec **Tauri 2 / Rust** et des onglets WebView2 natifs. Windows 10/11.
 
 ## Fonctionnalités
 
-- **Onglets** — onglets WebView2 natifs dans une unique fenêtre shell : onglets en veille, glisser-déposer, vue partagée, favicons, barre latérale repliable
-- **Notes** — éditeur Markdown avec aperçu, images, dessin à main levée, sous-ensemble LaTeX (`$...$`), dossiers, export `.md`
-- **Graphe de connaissances** — canevas infini avec disposition physique, cartes de notes, liens, annuler/rétablir, export PNG
-- **Espaces de travail et profils** — profils isolés par dossier de stockage, ensembles d'onglets par espace de travail
+- **Onglets** — onglets WebView2 natifs dans une unique fenêtre shell : onglets en veille, glisser-déposer, épinglage 📌, dossiers d'onglets (groupes), vue partagée, favicons et titres réels, barre latérale repliable, menus contextuels
+- **Confidentialité sur le trafic réel** — proxy de filtrage intégré qui bloque traqueurs/pubs/malwares par domaine ; upgrade HTTPS-only, contrôle des cookies et du Referer, isolation WebRTC, DoH/DNS, chaînes de proxy externes (jusqu'à 3 sauts), exceptions par site, statistiques de blocage en direct
+- **Notes** — éditeur Markdown avec aperçu, images (y compris SVG), dessin à main levée, sous-ensemble LaTeX (`$...$`), dossiers, export `.md`
+- **Graphe de connaissances** — canevas infini sur un vrai `<canvas>` avec disposition physique, cartes de notes, liens, annuler/rétablir, export PNG avec le contenu des blocs
+- **Espaces de travail et profils** — profils isolés par dossier de stockage, ensembles d'onglets par espace de travail, mode anonyme
 - **Coffre-fort** — gestionnaire de mots de passe : chiffrement AES-256-GCM, dérivation de clé Argon2id, import/export CSV
-- **Historique et favoris** — adossés à SQLite, historique par profil, suggestions dans l'omnibox
+- **Favoris et historique** — adossés à SQLite, historique par profil, dossiers de favoris, `javascript:` bookmarklets, suggestions dans l'omnibox
 - **Palette de commandes** — Ctrl+K, recherche par mots-clés en anglais et en russe
 - **Chat IA** — fournisseurs compatibles OpenAI et Ollama local
-- **Interception des téléchargements**, thèmes sombre/clair, personnalisation de l'interface, visite guidée
+- **Téléchargements** — moteur dédié avec annulation réelle, reprise et barre de progression avec vitesse et graphique
+- **Localisation** — interface en russe et en anglais
+- Thèmes sombre/clair, thème sombre intelligent pour les sites, personnalisation de l'interface (`.apbtheme`), transparence/vitrage de la fenêtre, visite guidée
+
+## Feuille de route
+
+1. Runtime d'extensions complet (content scripts par masques d'URL)
+2. Localisation au-delà de RU/EN
+3. Installateur personnalisé (contrôle total de l'installation en Rust)
 
 ## Stack technique
 
@@ -45,17 +52,9 @@ cargo build
 apps/desktop/
   src-tauri/        Backend Rust (shell, pages, commandes métier cmd/*)
   ui/               Frontend du shell (index.html + modules js, chargés dans l'ordre)
-crates/             Crates métier : notes, graphe, vault, privacy,
+crates/             Crates métier : notes, canvas, vault, privacy,
                     network, history, bookmarks, profiles, extensions, ai...
 ```
-
-## Feuille de route
-
-1. Appliquer le moteur de confidentialité au trafic réel (blocage des traqueurs / DNS / couche proxy)
-2. Runtime d'extensions (content scripts)
-3. Localisation au-delà du russe
-4. Mises à jour automatiques (tauri-plugin-updater + GitHub Releases)
-5. Installateur NSIS
 
 ## Crédits
 

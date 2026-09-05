@@ -21,7 +21,10 @@ function escapeHtml(s) {
     const s = await invoke("session_get");
     const list = s && Array.isArray(s.tabs) ? s.tabs.filter((t) => t && t.url) : [];
     const sub = list.slice(-15);
-    for (let i = sub.length - 1; i >= 0; i--) addSleepingTab(sub[i].url, sub[i].label);
+    for (let i = sub.length - 1; i >= 0; i--) addSleepingTab(sub[i].url, sub[i].label, !!sub[i].pinned);
+    // 📁 группы-папки: group = индекс ХОЗЯИНА в исходном списке; после
+    // addSleepingTab (unshift) порядок обратный — ремап по индексам.
+    if (typeof apbRemapGroups === "function") apbRemapGroups(sub);
   } catch { /* no saved session */ }
   // Стартуем с настоящей вкладкой «Новая вкладка» (пилюля + главный экран)
   openNewTabPage();

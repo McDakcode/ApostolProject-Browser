@@ -6,7 +6,7 @@
 <title>APB — ApostolProject Browser</title>
 <link rel="icon" type="image/png" href="logo.png?v=2" />
 <link rel="stylesheet" href="vendor/katex/katex.min.css" />
-<link rel="stylesheet" href="style.css?v=11" />
+<link rel="stylesheet" href="style.css?v=24" />
 <script>
   document.documentElement.setAttribute("data-theme", localStorage.getItem("apb-theme") || "dark");
 </script>
@@ -146,9 +146,16 @@
               <details class="add-form">
                 <summary>+ Добавить закладку</summary>
                 <input id="bmTitle" placeholder="Название" />
-                <input id="bmUrl" placeholder="URL" />
+                <input id="bmUrl" placeholder="URL или javascript:… (букмарклет)" />
                 <input id="bmTags" placeholder="Теги через запятую" />
+                <select id="bmFolder" style="margin-top:6px"><option value="">— без папки —</option></select>
                 <button id="bmAddBtn">Сохранить</button>
+              </details>
+              <details class="add-form">
+                <summary>+ Новая папка</summary>
+                <input id="bmFolderName" placeholder="Имя папки" />
+                <select id="bmFolderParent" style="margin-top:6px"><option value="">— в корне —</option></select>
+                <button id="bmFolderBtn">Создать папку</button>
               </details>
               <ul id="bmList" class="list"></ul>
             </section>
@@ -164,6 +171,7 @@
             <section id="downloads" class="panel">
               <h2 class="panel-title">
                 Загрузки
+                <button id="dlClearHistory" class="ghost-btn" title="Очистить историю загрузок (файлы не удаляются)">✕ История</button>
                 <button id="dlOpenFolder" class="ghost-btn"><svg class="ic" style="width:13px;height:13px;vertical-align:-2px"><use href="#i-folder"/></svg> Папка</button>
               </h2>
               <ul id="dlList" class="list"></ul>
@@ -216,7 +224,7 @@
                 <h2 class="internal-title">Настройки</h2>
 
                 <p class="panel-subtitle">Тема и оформление</p>
-                <p class="hint">Выбор чёрной/белой темы, акценты, шрифты, фон и кастомная тема переехали на вкладку «🎨 Оформление».</p>
+                <p class="hint">Выбор чёрной/белой темы, акценты, шрифты, фон, и кастомная тема переехали на вкладку «🎨 Оформление».</p>
 
                 <p class="panel-subtitle">Профили</p>
                 <ul id="profilesList" class="list"></ul>
@@ -916,10 +924,10 @@
   <script src="js/shell/theme-searchengines.js?v=3"></script>
   <script src="js/panels/profiles-sidepanel.js"></script>
   <script src="js/shell/sound-internalpages.js?v=2"></script>
-  <script src="js/tabs/session-ws-downloads-tabs.js?v=20"></script>
+  <script src="js/tabs/session-ws-downloads-tabs.js?v=32"></script>
   <script src="js/home/home-widgets.js?v=2"></script>
-  <script src="js/panels/omnibox-library-panels.js?v=19"></script>
-  <script src="js/notes/notes-editor.js?v=11"></script>
+  <script src="js/panels/omnibox-library-panels.js?v=21"></script>
+  <script src="js/notes/notes-editor.js?v=13"></script>
   <script src="js/settings/settings-onboarding-pz.js?v=16"></script>
   <script src="js/graph/graph-settings.js"></script>
   <script src="js/graph/graph.js?v=11"></script>

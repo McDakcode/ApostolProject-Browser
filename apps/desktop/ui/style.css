@@ -88,6 +88,15 @@ html {
   margin: 0;
   height: 100vh;
   background: var(--bg);
+  /* ПОЛНАЯ прозрачность окна (видно рабочий стол) обязана пройти СКВОЗЬ
+     html — он красил всё непрозрачным и гробил режим clear/blur. В
+     прозрачном режиме фон рисуют только реальные панели (сайдбар и т.д.). */
+}
+html.apb-window-clear,
+html.apb-window-clear body,
+html.apb-window-blur,
+html.apb-window-blur body {
+  background: transparent !important;
 }
 
 body {
@@ -196,7 +205,7 @@ a { color: var(--link); }
   backdrop-filter: blur(22px) saturate(140%);
   border-right: 1px solid var(--border-strong);
   box-shadow: 1px 0 6px rgba(0, 0, 0, 0.06);
-  transition: width 0.28s cubic-bezier(0.33, 1, 0.68, 1), box-shadow var(--speed);
+  transition: width 0.22s var(--ease-swift, cubic-bezier(0.32, 0.72, 0, 1)), box-shadow var(--speed);
 }
 
 /* Hover-expand when collapsed — driven by JS (.peek), NOT :hover,
@@ -223,7 +232,7 @@ body.collapsed .sidebar:not(.peek) .ws-x { display: none; }
   display: flex;
   flex-direction: column;
   min-height: 0;
-  transition: width 0.28s cubic-bezier(0.33, 1, 0.68, 1);
+  transition: width 0.22s var(--ease-swift, cubic-bezier(0.32, 0.72, 0, 1));
 }
 
 .side-head {
@@ -269,7 +278,7 @@ body.collapsed .sidebar:not(.peek) .new-tab-btn { justify-content: center; paddi
   cursor: pointer;
   min-width: 0;
   user-select: none; /* текст вкладки не выделяется при перетаскивании */
-  transition: background var(--speed), border-color var(--speed);
+  transition: background var(--speed), border-color var(--speed), transform 0.2s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1));
 }
 /* Новая вкладка появляется СВЕРХУ: плавно опускается с лёгким отскоком.
    Класс tab-appear вешается только на реально новые вкладки (см. renderTabStrip),
@@ -287,7 +296,8 @@ body.collapsed .sidebar:not(.peek) .new-tab-btn { justify-content: center; paddi
   box-shadow: var(--shadow-2);
   opacity: 0.95;
 }
-.tab-pill:hover { background: var(--surface-2); }
+.tab-pill:hover { background: var(--surface-2); transform: translateX(2px); }
+.tab-pill:active { transform: translateX(2px) scale(0.975); }
 .tab-pill.active {
   background: var(--surface-2);
   border-color: var(--border);
@@ -437,12 +447,15 @@ body.collapsed .sidebar:not(.peek) .ws-x { display: none; }
   font-size: 12.5px;
   cursor: pointer;
   text-align: left;
-  transition: background var(--speed), color var(--speed);
+  transition: background var(--speed), color var(--speed), transform 0.2s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1));
 }
-.rail-item .glyph { width: 18px; height: 18px; text-align: center; font-size: 14px; line-height: 1; flex-shrink: 0; }
+.rail-item .glyph { width: 18px; height: 18px; text-align: center; font-size: 14px; line-height: 1; flex-shrink: 0; transition: transform 0.22s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1)); }
 svg.ic { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .icon-btn svg.ic { width: 15px; height: 15px; }
-.rail-item:hover { background: var(--surface-2); color: var(--text); }
+.rail-item:hover { background: var(--surface-2); color: var(--text); transform: translateX(2px); }
+.rail-item:hover .glyph { transform: scale(1.14); }
+.rail-item:active { transform: translateX(2px) scale(0.975); }
+.rail-item:active .glyph { transform: scale(0.9); }
 .rail-item.active { background: var(--accent-soft, rgba(128,128,128,0.18)); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
 body.collapsed .sidebar:not(.peek) .rail-item { justify-content: center; padding-left: 0; padding-right: 0; }
 
@@ -637,14 +650,21 @@ body.sidebar-right .sidebar {
   padding: var(--row-pad);
   cursor: pointer;
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
-  transition: border-color var(--speed), background var(--speed);
+  transition: border-color var(--speed), background var(--speed),
+              transform 0.18s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+              box-shadow 0.22s var(--ease-out, ease);
 }
-.list li:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.list li:hover {
+  border-color: var(--border-strong); background: var(--surface-2);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07);
+}
+.list li:active { transform: translateY(0) scale(0.99); transition-duration: 0.06s; }
 .list li.empty {
   cursor: default; color: var(--text-faint); justify-content: center;
   border-style: dashed; padding: 18px 10px;
 }
-.list li.empty:hover { border-color: var(--border); background: var(--surface); }
+.list li.empty:hover { border-color: var(--border); background: var(--surface); transform: none; box-shadow: none; }
 .list li.active-profile { border-color: var(--accent); background: var(--accent-soft, rgba(128,128,128,0.14)); }
 .list .title { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .meta {
@@ -654,8 +674,10 @@ body.sidebar-right .sidebar {
 .list li button.close {
   background: none; border: none; color: var(--text-faint);
   cursor: pointer; width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.18s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1));
 }
-.list li button.close:hover { color: var(--danger); background: var(--surface-2); }
+.list li button.close:hover { color: var(--danger); background: var(--surface-2); transform: scale(1.15); }
+.list li button.close:active { transform: scale(0.85); transition-duration: 0.05s; }
 
 .row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
 .row input, .row select, .side-panel-inner > input, .side-panel-inner > select,
@@ -720,9 +742,11 @@ body.sidebar-right .sidebar {
   border-radius: var(--r-sm);
   padding: 6px 12px; cursor: pointer;
   margin-bottom: 6px;
-  transition: border-color var(--speed), color var(--speed), background var(--speed);
+  transition: border-color var(--speed), color var(--speed), background var(--speed),
+              transform 0.16s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1));
 }
 .ghost-btn:hover { border-color: var(--border-strong); color: var(--text); background: var(--surface-2); }
+.ghost-btn:active { transform: scale(0.95); transition-duration: 0.05s; }
 #emergencyBtn.danger { border-color: rgba(255, 101, 117, 0.5); color: var(--danger); }
 #emergencyBtn.active-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 
@@ -2504,7 +2528,7 @@ body.resizing .side-panel { transition: none; }
 .tab-pill:hover:not(.dragging) { transform: translateX(2px); }
 .tab-pill.tab-leave {
   pointer-events: none;
-  animation: apb-tab-leave 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: apb-tab-leave 0.17s var(--ease-swift, cubic-bezier(0.32, 0.72, 0, 1)) forwards;
 }
 
 /* --- Тайл-панель быстрого доступа: пружинистые карточки + каскад --- */
@@ -2565,8 +2589,8 @@ body.resizing .side-panel { transition: none; }
 }
 .pw-card .pc-btns button:hover { transform: translateY(-1px); }
 
-/* --- Бегущие чипы: статусы дышат --- */
-.dl-chip { transition: background 0.3s ease, color 0.3s ease; }
+/* --- Бегущие чипы: статусы дышат (opacity — композитор, не paint) --- */
+.dl-chip { transition: background 0.3s ease, color 0.3s ease, transform 0.25s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1)); }
 .dl-chip.st-active { animation: apb-chip-pulse 1.6s ease-in-out infinite; }
 .badge { transition: transform 0.15s var(--ease-out), border-color var(--speed), color var(--speed); }
 .badge:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--text); }
@@ -2690,3 +2714,436 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
 /* --- Бренд-марка лого чуть «оживает» под курсором --- */
 .brand-mark { transition: transform 0.3s var(--ease-springy); }
 .brand:hover .brand-mark { transform: rotate(-8deg) scale(1.1); }
+
+/* Загрузки: chip «отменено» (тост-карточки убраны — всё в списке) */
+.st-cancelled { background: rgba(160, 160, 170, 0.16); color: #a0a0aa; }
+
+/* Строка загрузки: имя; под ним [chip | прогресс-полоса | %] | кнопки при hover */
+#dlList li.dl-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; }
+#dlList li.dl-row .dl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#dlList li.dl-row .dl-sub { display: flex; align-items: center; gap: 7px; min-width: 0; }
+#dlList li.dl-row .dl-meta-hint { font-size: 10px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-bar {
+  display: inline-block; flex: 0 1 110px; height: 4px; min-width: 36px;
+  border-radius: 999px; overflow: hidden; position: relative;
+  background: rgba(127, 176, 255, 0.12);
+}
+.dl-bar-fill {
+  /* Полоса — scaleX (GPU-композитор), НЕ width: width = layout при каждом
+     прогресс-эмите; на 200 Гц дисплейное обновление 5 мс — layout-мусор
+     рвёт кадры. transform-origin слева — растёт из левого края. */
+  display: block; height: 100%; border-radius: 999px; width: 100%;
+  transform: scaleX(0); transform-origin: 0 50%;
+  background: linear-gradient(90deg, #7fb0ff, #9fd0ff);
+  transition: transform 0.25s var(--ease-swift, cubic-bezier(0.32, 0.72, 0, 1));
+  will-change: transform;
+}
+.dl-bar-fill.anim {
+  transform: scaleX(1);
+  background: transparent; position: relative;
+}
+/* Шиммер недетерминированной закачки: «гусеница» едет translateX (GPU).
+   Прежний вариант крутил background-position — paint всего трека каждый
+   кадр в главном потоке, на высокой герцовке это видимые фризы. */
+.dl-bar-fill.anim::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0;
+  width: 45%; border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #7fb0ff 35%, #9fd0ff 50%, #7fb0ff 65%, transparent);
+  animation: apb-dl-run 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform;
+}
+.dl-bar-fill.done { background: linear-gradient(90deg, #43c17a, #58d68d); transition: transform 0.35s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1)); }
+.dl-pct { font-size: 10px; font-weight: 700; color: var(--text-dim); font-family: var(--font-mono); flex-shrink: 0; }
+/* кнопки: скрыты, проявляются при наведении на строку */
+#dlList li.dl-row .dl-acts {
+  display: flex; gap: 3px; flex-shrink: 0;
+  opacity: 0; transform: translateX(6px);
+  transition: opacity 0.18s ease, transform 0.18s var(--ease-springy);
+  pointer-events: none;
+}
+#dlList li.dl-row:hover .dl-acts { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.dl-act {
+  background: none; border: 1px solid transparent; cursor: pointer;
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1; color: var(--text-dim);
+  transition: color 0.15s ease, background 0.15s ease, transform 0.15s var(--ease-springy);
+}
+.dl-act:hover { transform: scale(1.08); }
+.dl-act.dl-cancel:hover { color: #ff6575; background: rgba(255, 101, 117, 0.12); }
+.dl-act.dl-retry:hover  { color: #7fb0ff; background: rgba(127, 176, 255, 0.12); }
+.dl-act:disabled { opacity: 0.35; cursor: default; }
+.dl-act:disabled:hover { transform: none; color: var(--text-dim); background: none; }
+
+/* keyframes строк загрузок (полоса-шиммер — translateX/GPU, въезд строки, вспышка) */
+@keyframes apb-dl-run   { from { transform: translateX(-250%); } to { transform: translateX(240%); } }
+@keyframes apb-dl-row-in { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes apb-dl-flash { 0% { background: rgba(127, 176, 255, 0.20); } to { background: transparent; } }
+
+/* Новая строка в списке Загрузок — въезд слева + вспышка-подсветка */
+#dlList li.dl-new {
+  animation: apb-dl-row-in 0.4s var(--ease-springy) both, apb-dl-flash 1.8s ease-out both;
+  border-radius: var(--r-sm);
+}
+
+/* Строка загрузки: вторая линия — домен + мини-график скорости */
+#dlList li.dl-row .dl-sub2 { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; min-height: 22px; }
+#dlList li.dl-row .dl-speed {
+  flex-shrink: 0; margin-left: 6px;
+  font-size: 10px; font-weight: 700; color: #7fb0ff;
+  font-family: var(--font-mono); white-space: nowrap;
+}
+#dlList li.dl-row .dl-spark {
+  flex: 0 0 auto; width: 96px; height: 22px;
+  border-radius: 5px; background: rgba(127, 176, 255, 0.06);
+  opacity: 0; transform: translateY(3px);
+  transition: opacity 0.3s ease, transform 0.3s var(--ease-springy);
+}
+#dlList li.dl-row.st-spark-on .dl-spark { opacity: 1; transform: translateY(0); }
+
+/* ============================================================
+   Made by MrDuck — ЖИВАЯ СИСТЕМА ДВИЖЕНИЯ (200 Гц-friendly)
+   Единый блок токенов: раньше ease-кривые были разбросаны по трём
+   местам (44 / 1841 / 2366) и дублировались. Все анимации UI —
+   ТОЛЬКО transform/opacity (GPU-композитор): на 200 Гц кадр идёт
+   каждые 5 мс, layout/paint-свойства (width, background-position,
+   box-shadow на бесконечных циклах) вылетают из бюджета кадра.
+   ============================================================ */
+:root {
+  --ease-swift: cubic-bezier(0.32, 0.72, 0, 1);     /* панели/ящики: быстрый разгон, мягкий доезд */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);       /* дефолт «выезд» */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1); /* попы диалогов */
+  --ease-springy: cubic-bezier(0.3, 1.4, 0.5, 1);   /* пружинки кнопок/иконок */
+  --t-fast: 0.14s;   /* отклик (цвет, фон) */
+  --t-move: 0.22s;    /* движение (панели, пилюли) */
+  --t-show: 0.32s;    /* появление (диалоги, страницы) */
+}
+
+/* Плавный скролл списков/панелей — CSS-side, без JS-таймеров */
+.side-panel, .home, .list, #dlList { scroll-behavior: smooth; }
+
+/* Селект/инпуты/текст-поля: мягкая релаксация рамки при фокусе */
+input, select, textarea {
+  transition: border-color var(--t-fast) ease,
+              box-shadow 0.25s var(--ease-out, ease),
+              background var(--t-fast) ease;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  transition-duration: 0.06s; /* фокус-кольцо вспыхивает мгновенно */
+}
+
+/* Доступность: тот, кто попросил меньше движения — получает статичный UI */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Made by MrDuck — ЖИВОЙ ФОН-СОЗВЕЗДИЕ + СТЕКЛЯННЫЙ РЕЖИМ
+   #apbFxCanvas: под всем UI, рисуется rAF (200 Гц = 200 кадров/с),
+   pointer-events: none — клики уходят интерфейсу. Точки/линии берут
+   цвет --accent — созвездие перекрашивается вместе с темой.
+   ============================================================ */
+#apbFxCanvas {
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  z-index: 0; pointer-events: none;
+}
+
+/* Стеклянный режим: хром и панели — полупрозрачное стекло с размытием,
+   сквозь них видно созвездие. Вложенные сплошные слои становятся
+   стеклообразными тоже (панели поверх панелей). */
+html.apb-glass body { background: transparent; }
+html.apb-glass .sidebar,
+html.apb-glass .toolbar,
+html.apb-glass .side-panel,
+html.apb-glass .internal-host,
+html.apb-glass .browser-view {
+  background: transparent;
+}
+html.apb-glass .sidebar { backdrop-filter: blur(28px) saturate(150%); }
+html.apb-glass .toolbar,
+html.apb-glass .internal-host,
+html.apb-glass .browser-view,
+html.apb-glass .side-panel {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(26px) saturate(150%);
+}
+html.apb-glass .isec-nav { background: transparent; }
+html.apb-glass .list li,
+html.apb-glass .internal-page,
+html.apb-glass .panel { background: color-mix(in srgb, var(--surface) 62%, transparent); }
+html.apb-glass .address-form input { background: color-mix(in srgb, var(--surface) 55%, transparent); backdrop-filter: blur(14px); }
+
+/* --- Тумблер apb-switch (создан для fx-настроек, пригодится дальше) --- */
+.fx-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  transition: border-color var(--t-fast) ease, transform 0.18s var(--ease-out, ease);
+}
+.fx-row:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.fx-lbl { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fx-name { font-weight: 600; color: var(--text); font-size: 12.5px; }
+.fx-desc { color: var(--text-faint); font-size: 11px; line-height: 1.45; }
+.apb-switch { position: relative; display: inline-block; flex-shrink: 0; cursor: pointer; }
+.apb-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.apb-switch .knob {
+  display: block; width: 40px; height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-faint) 28%, transparent);
+  transition: background 0.22s var(--ease-out, ease);
+  position: relative;
+}
+.apb-switch .knob::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.24s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1));
+}
+.apb-switch input:checked + .knob { background: var(--accent); }
+.apb-switch input:checked + .knob::after { transform: translateX(18px); }
+.apb-switch:active .knob::after { width: 19px; }
+
+/* --- Адресная строка: conic-кольцо при фокусе (свет ходит по кругу) --- */
+.address-form { position: relative; }
+.address-form::before {
+  content: ""; position: absolute; inset: -2px;
+  border-radius: 999px;
+  padding: 2px;
+  background: conic-gradient(from var(--apb-ring, 0deg),
+    transparent 0%, var(--accent) 12%, transparent 26%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.address-form:focus-within::before {
+  opacity: 1;
+  animation: apb-ring-spin 2.4s linear infinite;
+}
+@property --apb-ring { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes apb-ring-spin { to { --apb-ring: 360deg; } }
+
+/* --- Тайлы «недавних» на доме: 3D-наклон к курсору + параллакс-иконка --- */
+.recent-chip {
+  transition: transform 0.25s var(--ease-springy, cubic-bezier(0.3, 1.4, 0.5, 1)),
+              box-shadow 0.25s ease, border-color var(--t-fast) ease;
+  will-change: transform;
+}
+.recent-chip:hover {
+  transform: perspective(500px) rotateX(4deg) rotateY(-6deg) translateY(-2px) scale(1.03);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.recent-chip:active { transform: perspective(500px) rotateX(0) rotateY(0) scale(0.97); transition-duration: 0.06s; }
+.recent-chip .chip-ico, .recent-chip .chip-lbl {
+  transition: transform 0.25s var(--ease-out, ease);
+}
+.recent-chip:hover .chip-ico { transform: translateX(2px) scale(1.08); }
+.recent-chip:hover .chip-lbl { transform: translateX(2px); }
+
+/* --- Каскад секций внутренних страниц: каждая чуть позже предыдущей --- */
+.internal-page .panel-subtitle, .internal-page details, .internal-page .fx-row,
+.internal-page .row, .internal-page .badge-row, .internal-page .hint {
+  animation: apb-fade-up 0.4s var(--ease-out, ease) both;
+}
+.internal-page .panel-subtitle:nth-of-type(1), .internal-page details:nth-of-type(1) { animation-delay: 0.02s; }
+.internal-page .panel-subtitle:nth-of-type(2), .internal-page details:nth-of-type(2) { animation-delay: 0.08s; }
+.internal-page .panel-subtitle:nth-of-type(3), .internal-page details:nth-of-type(3) { animation-delay: 0.14s; }
+.internal-page .panel-subtitle:nth-of-type(4), .internal-page details:nth-of-type(4) { animation-delay: 0.2s; }
+.internal-page .panel-subtitle:nth-of-type(5), .internal-page details:nth-of-type(5) { animation-delay: 0.26s; }
+.internal-page .panel-subtitle:nth-of-type(6), .internal-page details:nth-of-type(6) { animation-delay: 0.32s; }
+.internal-page .panel-subtitle:nth-of-type(7), .internal-page details:nth-of-type(7) { animation-delay: 0.38s; }
+.internal-page .panel-subtitle:nth-of-type(8), .internal-page details:nth-of-type(8) { animation-delay: 0.44s; }
+
+/* --- Ripple на кнопках: расходящееся кольцо от точки клика --- */
+button { position: relative; overflow: hidden; }
+.apb-ripple {
+  position: absolute; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  animation: apb-ripple 0.55s var(--ease-out, ease) forwards;
+}
+@keyframes apb-ripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+
+/* --- Подсказки v2: свои типы пунктов + подсветка совпадения --- */
+.omni-item b.omni-hl {
+  color: var(--accent);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+.omni-item .omni-comp {
+  color: var(--accent);
+  font-weight: 700;
+}
+.omni-item.omni-want .omni-ic { filter: saturate(1.6); }
+.omni-item.omni-search { color: var(--text-dim); }
+.omni-item.omni-search .omni-t { font-style: italic; }
+.omni-item.omni-search .omni-ic { transform: scale(0.92); }
+.omni-item .omni-ic { transition: transform 0.25s var(--ease-springy, ease); }
+.omni-item:hover .omni-ic, .omni-item.sel .omni-ic { transform: scale(1.18); }
+.omni-item .omni-u { font-size: 10.5px; }
+
+/* ============================================================
+   Made by MrDuck — закреплённые вкладки, папки закладок,
+   прозрачное окно (clear — сквозь браузер видно рабочий стол)
+   ============================================================ */
+
+/* Закреплённая вкладка: компактный квадрат — фавикон + 📌 (без ✕) */
+.tab-pill.pinned {
+  padding: 6px;
+  justify-content: center;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.tab-pill.pinned .tab-fav { width: 22px; height: 22px; }
+.tab-pill.pinned:hover { transform: scale(1.06); }
+.tab-pill.pinned:active { transform: scale(0.92); }
+.tab-pill-pin {
+  background: none; border: none; color: var(--text-faint);
+  cursor: pointer; width: 18px; height: 18px; border-radius: 5px;
+  font-size: 10px; line-height: 1; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.16s ease, transform 0.18s var(--ease-springy, ease), background 0.15s ease;
+}
+.tab-pill:hover .tab-pill-pin, .tab-pill-pin.pinned-on { opacity: 1; }
+.tab-pill-pin:hover { background: var(--surface-2); transform: scale(1.2); }
+.tab-pill-pin.pinned-on { color: var(--accent); }
+/* у закреплённой кнопка живёт постоянно (иначе не открепить) */
+.tab-pill.pinned .tab-pill-pin { opacity: 1; width: 14px; height: 14px; position: absolute; right: 1px; bottom: 1px; }
+
+/* Папки закладок в панели: дерево с отступами, стрелка-каретка */
+.bm-folder { border: 1px dashed var(--border); border-radius: var(--r-sm); padding: 6px 8px; margin: 4px 0; background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.bm-folder > summary { cursor: pointer; font-weight: 700; font-size: 12.5px; color: var(--text); user-select: none; transition: color var(--t-fast) ease, transform 0.16s ease; }
+.bm-folder > summary:hover { color: var(--accent); transform: translateX(2px); }
+.bm-folder[open] > summary { color: var(--accent); }
+.bm-folder .list { margin: 6px 0 2px; gap: 4px; }
+.bm-folder li { padding: 6px 8px; }
+
+/* Кнопки режима прозрачности окна: активная — акцентная */
+.fx-win.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* ============================================================
+   Made by MrDuck — ПРОЗРАЧНОЕ ОКНО v2 (рабочая версия)
+   ГРАБЛЯ 36: прозрачность убивали ТРИ слоя: (1) html { background:
+   var(--bg) } — непрозрачная краска на всём окне; (2) webview-движок
+   WebView2 — окно transparent, а движок красил белым (лечится
+   set_background_color(0,0,0,0) на живом окне — см. windowfx.rs);
+   (3) контейнеры .browser-view/.internal-host с фоном var(--bg).
+   Оба режима включают html.apb-window-blur / .apb-window-clear.
+   ============================================================ */
+html.apb-window-clear,
+html.apb-window-blur,
+html.apb-window-clear body,
+html.apb-window-blur body { background: transparent !important; }
+html.apb-window-clear .browser-view,
+html.apb-window-clear .internal-host,
+html.apb-window-clear .home,
+html.apb-window-clear .browser-empty,
+html.apb-window-blur .browser-view,
+html.apb-window-blur .internal-host { background: transparent !important; }
+/* Хром держит лёгкую тонировку, чтобы текст читался поверх стола.
+   В blur-режиме за тонировкой СИСТЕМНЫЙ Acrylic (за окном реально
+   виден размытый рабочий стол); в clear — чистая прозрачность. */
+html.apb-window-clear .sidebar,
+html.apb-window-blur .sidebar { background: color-mix(in srgb, var(--bg) 82%, transparent); }
+html.apb-window-clear .toolbar,
+html.apb-window-blur .toolbar { background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(20px); }
+html.apb-window-clear .side-panel,
+html.apb-window-blur .side-panel { background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(24px) saturate(140%); }
+/* слой фоновой картинки интерфейса в прозрачном режиме гасим */
+html.apb-window-clear #apbBgLayer { display: none !important; }
+
+/* ============================================================
+   Made by MrDuck — контекст-меню пилюль, группы-папки вкладок,
+   закреплённая пилюля с фавиконом И названием
+   ============================================================ */
+
+/* Контекст-меню правого клика по вкладке */
+.apb-tabmenu {
+  position: fixed; z-index: 999999;
+  min-width: 200px; padding: 5px;
+  background: color-mix(in srgb, var(--bg-soft) 92%, transparent);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow-2);
+  display: flex; flex-direction: column; gap: 2px;
+  animation: apb-pop 0.14s var(--ease-bounce, ease) backwards;
+}
+.apb-tabmenu button {
+  all: unset; cursor: pointer;
+  padding: 7px 10px; border-radius: 7px;
+  font-size: 12.5px; color: var(--text);
+  transition: background 0.12s ease, color 0.12s ease, transform 0.15s var(--ease-springy, ease);
+}
+.apb-tabmenu button:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); transform: translateX(2px); }
+.apb-tabmenu button:active { transform: scale(0.97); }
+.apb-tabmenu button.danger { color: var(--danger, #ff6575); }
+.apb-tabmenu button.danger:hover { background: color-mix(in srgb, var(--danger, #ff6575) 16%, transparent); }
+
+/* Группа-папка вкладок: рамка по краям + заголовок */
+.tab-group {
+  margin: 5px 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  padding: 4px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.tab-group-head {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; margin-bottom: 3px;
+  border-radius: 7px;
+  font-size: 11.5px; font-weight: 700;
+  color: var(--accent);
+  cursor: pointer; user-select: none;
+  transition: background 0.15s ease, transform 0.15s var(--ease-springy, ease);
+}
+.tab-group-head:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); transform: translateX(2px); }
+.tab-group-body { display: flex; flex-direction: column; gap: 3px; }
+.tab-group .tab-pill { background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.tab-group.collapsed { border-style: dashed; }
+.tab-group.collapsed .tab-group-head { margin-bottom: 0; }
+.tab-group.collapsed .tab-group-body { display: none; }
+
+/* Подсветка пилюли-цели при перетаскивании (drop создаст папку) */
+.tab-pill.tab-drop-target {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent),
+             0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent);
+  transform: scale(1.03);
+  transition: box-shadow 0.15s ease, transform 0.15s var(--ease-springy, ease);
+}
+
+/* Закреплённая пилюля: фавикон + НАЗВАНИЕ + мелкая 📌-метка; без ✕ */
+.tab-pill.pinned {
+  padding: 5px 8px;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.tab-pill.pinned .tab-pill-title { font-weight: 600; font-size: 11.5px; }
+.tab-pill-pinmark {
+  font-size: 9px; line-height: 1; flex-shrink: 0;
+  filter: saturate(1.3);
+  transform: scale(1);
+  transition: transform 0.2s var(--ease-springy, ease);
+}
+.tab-pill.pinned:hover .tab-pill-pinmark { transform: scale(1.25) rotate(-8deg); }

@@ -28,23 +28,123 @@ document.getElementById("addressForm").addEventListener("submit", (e) => {
 });
 
 // ---------------------------------------------------------------------
-// Bookmarks
+// Bookmarks — v2: ПАПКИ (дерево, вложенность) + БУКМАРКЛЕТЫ.
+// Папки хранит бэкенд (bookmark_folders, folder_id у закладки); панель
+// строит дерево через bookmarks_tree одним пакетом. Букмарклет — закладка
+// с URL «javascript:…»: клик исполняет код В АКТИВНОЙ вкладке (page_eval),
+// ⚡ в строке. Поиск — по-прежнему substring (search_bookmarks).
 // ---------------------------------------------------------------------
 
+let bmFolders = []; // [{id, parent_id, name}]
+
+function bmFolderLabel(id) {
+  const f = bmFolders.find((x) => String(x.id) === String(id));
+  return f ? f.name : "";
+}
+
+// каскад имён папки для селектов: «Работа / Подработка»
+function bmPathOf(id, guard = 0) {
+  if (guard > 8) return "";
+  const f = bmFolders.find((x) => String(x.id) === String(id));
+  if (!f) return "";
+  const parent = f.parent_id ? bmPathOf(f.parent_id, guard + 1) : "";
+  return parent ? parent + " / " + f.name : f.name;
+}
+
+function bmFillFolderSelects() {
+  const opts = ['<option value="">— без папки —</option>']
+    .concat(bmFolders.map((f) => `<option value="${f.id}">${escapeHtml(bmPathOf(f.id))}</option>`));
+  document.getElementById("bmFolder").innerHTML = opts.join("");
+  const popts = ['<option value="">— в корне —</option>']
+    .concat(bmFolders.map((f) => `<option value="${f.id}">${escapeHtml(bmPathOf(f.id))}</option>`));
+  document.getElementById("bmFolderParent").innerHTML = popts.join("");
+}
+
+// строка закладки (или букмарклета)
+function bmRow(b) {
+  const li = document.createElement("li");
+  const isJs = /^javascript:/i.test(b.url);
+  li.innerHTML =
+    `<div style="min-width:0"><div class="title">${isJs ? "⚡ " : ""}${escapeHtml(b.title)}</div>` +
+    `<div class="meta">${escapeHtml(isJs ? "букмарклет — код исполняется на странице" : b.url)}${b.tags.length ? " · " + escapeHtml(b.tags.join(", ")) : ""}</div></div>`;
+  li.onclick = () => {
+    if (isJs) {
+      // букмарклет: код — в активную вкладку (page_eval)
+      const code = b.url.replace(/^javascript:/i, "");
+      if (typeof activeTabId !== "undefined" && activeTabId) {
+        invoke("page_eval", { id: activeTabId, js: code }).catch(() => {});
+      }
+      return;
+    }
+    navigateActiveTab(b.url, b.title || undefined);
+  };
+  // ✕ — удалить закладку (файлы/страницу не трогаем)
+  const del = document.createElement("button");
+  del.className = "close";
+  del.textContent = "✕";
+  del.title = "Удалить закладку";
+  del.onclick = (ev) => {
+    ev.stopPropagation();
+    invoke("bookmark_delete", { id: String(b.id) }).then(() => refreshBookmarks()).catch(() => {});
+  };
+  li.appendChild(del);
+  return li;
+}
+
 async function refreshBookmarks(query = "") {
-  const results = await invoke("search_bookmarks", { query });
   const list = document.getElementById("bmList");
-  list.innerHTML = "";
-  if (results.length === 0) {
-    list.innerHTML = `<li class="empty">${query ? "Ничего не найдено" : "Пока нет закладок"}</li>`;
+  if (query) {
+    // поиск — плоский список (как раньше), но со ⚡ и ✕
+    const results = await invoke("search_bookmarks", { query });
+    list.innerHTML = "";
+    if (!results.length) {
+      list.innerHTML = `<li class="empty">Ничего не найдено</li>`;
+      return;
+    }
+    for (const b of results) list.appendChild(bmRow(b));
     return;
   }
-  for (const b of results) {
-    const li = document.createElement("li");
-    li.innerHTML = `<div><div class="title">${escapeHtml(b.title)}</div><div class="meta">${escapeHtml(b.url)}${b.tags.length ? " · " + b.tags.join(", ") : ""}</div></div>`;
-    li.onclick = () => navigateActiveTab(b.url);
-    list.appendChild(li);
+  // дерево: bookmarks_tree одним пакетом
+  let tree;
+  try { tree = await invoke("bookmarks_tree", {}); } catch { tree = null; }
+  if (!tree) { list.innerHTML = `<li class="empty">Ошибка загрузки</li>`; return; }
+  bmFolders = tree.folders || [];
+  bmFillFolderSelects();
+  list.innerHTML = "";
+  const items = tree.items || [];
+  if (!items.length && !bmFolders.length) {
+    list.innerHTML = `<li class="empty">Пока нет закладок</li>`;
+    return;
   }
+  // корневые закладки (без папки)
+  for (const b of items.filter((x) => !x.folder_id)) list.appendChild(bmRow(b));
+  // папки: <details> с детьми (вложенность — каскадом имён)
+  const byParent = new Map();
+  for (const f of bmFolders) {
+    const key = f.parent_id ? String(f.parent_id) : "";
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(f);
+  }
+  const emitFolder = (folderId, host, depth) => {
+    const kids = (byParent.get(String(folderId)) || []);
+    for (const f of kids) {
+      const det = document.createElement("details");
+      det.className = "bm-folder";
+      det.style.marginLeft = (depth * 10) + "px";
+      const sum = document.createElement("summary");
+      sum.textContent = "📁 " + f.name;
+      det.appendChild(sum);
+      host.appendChild(det);
+      const inner = document.createElement("ul");
+      inner.className = "list";
+      det.appendChild(inner);
+      for (const b of items.filter((x) => String(x.folder_id) === String(f.id))) {
+        inner.appendChild(bmRow(b));
+      }
+      emitFolder(f.id, inner, depth + 1);
+    }
+  };
+  emitFolder(null, list, 0);
 }
 
 document.getElementById("bmSearch").addEventListener("input", (e) => refreshBookmarks(e.target.value));
@@ -54,10 +154,21 @@ document.getElementById("bmAddBtn").addEventListener("click", async () => {
   const url = document.getElementById("bmUrl").value.trim();
   const tags = document.getElementById("bmTags").value.split(",").map((t) => t.trim()).filter(Boolean);
   if (!title || !url) return;
-  await invoke("add_bookmark", { title, url, tags, note: null });
+  const folderId = document.getElementById("bmFolder").value || null;
+  // add_bookmark с папкой: бэкенд принимает folderId (Option<Uuid>)
+  await invoke("add_bookmark", { title, url, tags, note: null, folderId });
   document.getElementById("bmTitle").value = "";
   document.getElementById("bmUrl").value = "";
   document.getElementById("bmTags").value = "";
+  await refreshBookmarks();
+});
+
+document.getElementById("bmFolderBtn").addEventListener("click", async () => {
+  const name = document.getElementById("bmFolderName").value.trim();
+  if (!name) return;
+  const parentId = document.getElementById("bmFolderParent").value || null;
+  await invoke("bookmark_folder_create", { name, parentId }).catch(() => {});
+  document.getElementById("bmFolderName").value = "";
   await refreshBookmarks();
 });
 
@@ -288,37 +399,119 @@ function omniHighlight() {
   Array.from(omniDrop.children).forEach((c, i) => c.classList.toggle("sel", i === omniIdx));
 }
 
+// --- Suggest v2: свой стиль, три источника, всё ЛОКАЛЬНО (приватность:
+// никаких внешних suggest-серверов — keystrokes не покидают браузер) ---
+//  1. «Что я уже частично искал» — совпадения из истории (подсветка части)
+//  2. «Что я мог хотеть» — продолжения: домены из истории + офлайн-словарь
+//  3. Фолбэк — «Искать „…“» через выбранный поисковик / прямой переход
+function omniEsc(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+// подсветка совпадения внутри текста (безопасно: всё экранировано)
+function omniHl(text, q) {
+  const t = String(text || "");
+  if (!q) return omniEsc(t);
+  const i = t.toLowerCase().indexOf(String(q).toLowerCase());
+  if (i < 0) return omniEsc(t);
+  return omniEsc(t.slice(0, i))
+    + '<b class="omni-hl">' + omniEsc(t.slice(i, i + q.length)) + "</b>"
+    + omniEsc(t.slice(i + q.length));
+}
+// офлайн-словарь популярных доменов (только префиксные дополнения)
+const OMNI_DOMAINS = [
+  "youtube.com", "github.com", "gitlab.com", "vk.com", "habr.com",
+  "reddit.com", "wikipedia.org", "telegram.org", "twitter.com", "x.com",
+  "instagram.com", "facebook.com", "google.com", "translate.google.com",
+  "mail.ru", "yandex.ru", "stackoverflow.com", "openai.com", "notion.so",
+  "figma.com", "discord.com", "twitch.tv", "music.youtube.com", "rutracker.org",
+];
+// строит и добавляет пункт списка
+function omniPush(kind, icon, mainHtml, sub, url, title) {
+  omniItems.push({ kind, icon, mainHtml, sub, url, title });
+}
+function omniBuildDom(list) {
+  // item DOM + мышь: mousedown (не click — фокус не теряем до перехода)
+  omniDrop.innerHTML = "";
+  omniItems.forEach((v, i) => {
+    const d = document.createElement("div");
+    d.className = "omni-item omni-" + v.kind + (i === omniIdx ? " sel" : "");
+    const ic = document.createElement("span"); ic.className = "omni-ic"; ic.textContent = v.icon;
+    const tx = document.createElement("span"); tx.className = "omni-t"; tx.innerHTML = v.mainHtml;
+    const ur = document.createElement("span"); ur.className = "omni-u"; ur.textContent = v.sub || "";
+    d.append(ic, tx, ur);
+    d.onmousedown = (e) => {
+      e.preventDefault(); // чтобы не терять фокус до перехода
+      omniHide();
+      navigateActiveTab(v.url, v.title || undefined);
+    };
+    omniDrop.appendChild(d);
+  });
+}
 function omniRender(q) {
 // Made by MrDuck
-  const query = (q || "").trim().toLowerCase();
+  const raw = (q || "").trim();
+  const query = raw.toLowerCase();
   if (!query) { omniHide(); return; }
-  invoke("recent_history", { limit: 200 }).then((list) => {
-    omniItems = (list || [])
-      .filter((v) => {
-        const u = (v.url || "").toLowerCase();
-        const t = (v.title || "").toLowerCase();
-        return u.includes(query) || t.includes(query);
-      })
-      .slice(0, 7);
-    if (!omniItems.length) { omniHide(); return; }
-    omniDrop.innerHTML = "";
-    omniItems.forEach((v, i) => {
-      const d = document.createElement("div");
-      d.className = "omni-item" + (i === omniIdx ? " sel" : "");
-      const ic = document.createElement("span"); ic.className = "omni-ic"; ic.textContent = "🕘";
-      const tx = document.createElement("span"); tx.className = "omni-t";
-      const mainTitle = v.title && v.title !== v.url ? v.title : v.url;
-      tx.textContent = mainTitle;
-      const ur = document.createElement("span"); ur.className = "omni-u";
-      try { ur.textContent = new URL(v.url).hostname.replace(/^www\./, ""); } catch { ur.textContent = ""; }
-      d.append(ic, tx, ur);
-      d.onmousedown = (e) => {
-        e.preventDefault(); // чтобы не терять фокус до перехода
-        omniHide();
-        navigateActiveTab(v.url, v.title || undefined);
-      };
-      omniDrop.appendChild(d);
+  invoke("recent_history", { limit: 300 }).then((list) => {
+    const hist = list || [];
+    omniItems = [];
+    const seenUrl = new Set();
+    // --- 1. История: «уже частично искал» ---
+    const hits = hist.filter((v) => {
+      const u = (v.url || "").toLowerCase();
+      const t = (v.title || "").toLowerCase();
+      return u.includes(query) || t.includes(query);
     });
+    for (const v of hits.slice(0, 5)) {
+      if (seenUrl.has(v.url)) continue;
+      seenUrl.add(v.url);
+      const mainTitle = v.title && v.title !== v.url ? v.title : v.url;
+      let host = "";
+      try { host = new URL(v.url).hostname.replace(/^www\./, ""); } catch {}
+      omniPush("hist", "🕘", omniHl(mainTitle, raw), host, v.url, v.title || undefined);
+    }
+    // --- 2. «Что я мог хотеть»: продолжения (только для «голого» слова) ---
+    const bare = /^[\wа-яё-]+$/i.test(raw) && !raw.includes(" ");
+    if (bare) {
+      const comp = new Set();
+      // домены из истории юзера
+      for (const v of hist) {
+        try {
+          const h = new URL(v.url).hostname.replace(/^www\./, "");
+          if (h.startsWith(query) && h.length > raw.length) comp.add(h);
+        } catch {}
+      }
+      // офлайн-словарь популярных
+      for (const d of OMNI_DOMAINS) if (d.startsWith(query) && d !== raw) comp.add(d);
+      let n = 0;
+      for (const h of comp) {
+        if (n >= 3) break;
+        const url = "https://" + h + "/";
+        if (seenUrl.has(url)) continue;
+        seenUrl.add(url);
+        omniPush("want", "✨", omniEsc(raw) + '<span class="omni-comp">' + omniEsc(h.slice(raw.length)) + "</span>", "продолжение", url, h);
+        n++;
+      }
+    }
+    // --- 3. Прямой URL / поиск ---
+    if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw)) {
+      const url = raw.includes("://") ? raw : "https://" + raw;
+      if (!seenUrl.has(url)) {
+        seenUrl.add(url);
+        omniPush("url", "🌐", omniEsc(raw), "открыть сайт", url, raw);
+      }
+    }
+    const eng = (typeof getSearchEngine === "function") ? getSearchEngine() : "duckduckgo";
+    const tpl = (typeof SEARCH_ENGINES !== "undefined" && SEARCH_ENGINES[eng]) || "https://duckduckgo.com/?q=";
+    const surl = tpl + encodeURIComponent(raw);
+    if (!seenUrl.has(surl)) {
+      omniPush("search", "🔍", "Искать «" + omniEsc(raw) + "»", "поиск", surl, raw);
+    }
+    if (!omniItems.length) { omniHide(); return; }
+    if (omniIdx >= omniItems.length) omniIdx = -1;
+    omniBuildDom();
     // Палитра/подсказки — это HTML, а сайт рисуется ПОВЕРХ: прячем вебвью
     if (typeof activeTabId !== "undefined" && activeTabId) {
       const t = typeof currentTabObj === "function" ? currentTabObj() : null;

@@ -25,7 +25,6 @@ mod shell;
 mod state;
 mod util;
 
-use cmd::downloads::DownloadsLog;
 use cmd::*;
 use shell::{enable_dwm_transitions, relayout, PageTabs};
 use state::AppState;
@@ -69,7 +68,8 @@ fn main() {
             let bootstrapped = AppState::bootstrap(data_dir).map_err(|e: String| -> Box<dyn std::error::Error> { e.into() })?;
             app.manage(Mutex::new(bootstrapped));
             app.manage(PageTabs::default());
-            app.manage(DownloadsLog::default());
+            app.manage(cmd::downloads::DownloadsLog::load_from_disk(app.handle()));
+            app.manage(cmd::downloads::DlOwnRuns::default());
             // Видимая структура данных юзера (settings.json/themes/README):
             cmd::userfiles::ensure_visible_layout(app.handle());
 
@@ -110,6 +110,11 @@ fn main() {
                     .resizable(true)
                     .decorations(false)
                     .maximized(true)
+                    // Прозрачное окно С МОМЕНТА СОЗДАНИЯ: Windows не даёт
+                    // включить прозрачность/стекло на живом окне. Пока юзер
+                    // не просил «видеть рабочий стол», html/body непрозрачны
+                    // и окно выглядит как обычное.
+                    .transparent(true)
                     .additional_browser_args(liveprivacy::browser_args());
             // Debug-логгер — только в debug-сборке (см. DEBUG_FRONTEND_JS).
             // initialization_script выполняется до скриптов index.html —
@@ -145,6 +150,10 @@ fn main() {
             delete_profile,
             add_bookmark,
             search_bookmarks,
+            bookmarks_tree,
+            bookmark_folder_create,
+            bookmark_delete,
+            window_transparency,
             record_visit,
             recent_history,
             clear_history,
@@ -192,6 +201,9 @@ fn main() {
             session_save,
             downloads_list,
             downloads_dir,
+            download_cancel,
+            download_retry,
+            downloads_clear,
             dl_dir_get,
             dl_dir_set,
             save_text_file,

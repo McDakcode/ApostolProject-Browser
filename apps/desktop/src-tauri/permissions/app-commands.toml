@@ -67,6 +67,9 @@ commands.allow = [
     "session_save",
     "downloads_list",
     "downloads_dir",
+    "download_cancel",
+    "download_retry",
+    "downloads_clear",
     "dl_dir_get",
     "dl_dir_set",
     "save_text_file",
@@ -102,4 +105,8 @@ commands.allow = [
     "update_install",
     "settings_theme_save",
     "settings_search_save",
+    "bookmarks_tree",
+    "bookmark_folder_create",
+    "bookmark_delete",
+    "window_transparency",
 ]
