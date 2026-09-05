@@ -399,11 +399,13 @@ function omniHighlight() {
   Array.from(omniDrop.children).forEach((c, i) => c.classList.toggle("sel", i === omniIdx));
 }
 
-// --- Suggest v2: свой стиль, три источника, всё ЛОКАЛЬНО (приватность:
-// никаких внешних suggest-серверов — keystrokes не покидают браузер) ---
-//  1. «Что я уже частично искал» — совпадения из истории (подсветка части)
-//  2. «Что я мог хотеть» — продолжения: домены из истории + офлайн-словарь
-//  3. Фолбэк — «Искать „…“» через выбранный поисковик / прямой переход
+// --- Suggest v3: как у нормального браузера — до 5 живых вариантов, всё ЛОКАЛЬНО
+// (приватность: никаких внешних suggest-серверов — keystrokes не покидают браузер) ---
+//  1. «Закладки» — твоё сохранённое (⭐, из search_bookmarks)
+//  2. «История» — что уже частично искал/открывал (🕘, из recent_history)
+//  3. «Продолжение» — домены на префикс (✨, история + офлайн-словарь)
+//  4. «Прямой URL» (🌐) — если похоже на адрес
+//  5. «Искать …» (🔍) — всегда последний, гарантированно через выбранный поисковик
 function omniEsc(s) {
   return String(s || "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -454,60 +456,82 @@ function omniRender(q) {
   const raw = (q || "").trim();
   const query = raw.toLowerCase();
   if (!query) { omniHide(); return; }
-  invoke("recent_history", { limit: 300 }).then((list) => {
-    const hist = list || [];
+  // История + закладки параллельно: как в нормальном браузере подсказываем
+  // и то, что уже открывал, и то, что сохранил в закладки.
+  Promise.all([
+    invoke("recent_history", { limit: 300 }).catch(() => []),
+    typeof invoke === "function" ? invoke("search_bookmarks", { query: raw }).catch(() => []) : Promise.resolve([]),
+  ]).then(([hist, bms]) => {
+    hist = hist || [];
+    bms = bms || [];
     omniItems = [];
     const seenUrl = new Set();
-    // --- 1. История: «уже частично искал» ---
-    const hits = hist.filter((v) => {
-      const u = (v.url || "").toLowerCase();
-      const t = (v.title || "").toLowerCase();
-      return u.includes(query) || t.includes(query);
-    });
-    for (const v of hits.slice(0, 5)) {
-      if (seenUrl.has(v.url)) continue;
-      seenUrl.add(v.url);
-      const mainTitle = v.title && v.title !== v.url ? v.title : v.url;
-      let host = "";
-      try { host = new URL(v.url).hostname.replace(/^www\./, ""); } catch {}
-      omniPush("hist", "🕘", omniHl(mainTitle, raw), host, v.url, v.title || undefined);
-    }
-    // --- 2. «Что я мог хотеть»: продолжения (только для «голого» слова) ---
+    const wantUrlish = /^[\wа-яё-]+(\.[\wа-яё-]+){1,}(\/\S*)?$/i.test(raw) || raw.includes("://");
     const bare = /^[\wа-яё-]+$/i.test(raw) && !raw.includes(" ");
+
+    function hostOf(u) {
+      try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; }
+    }
+    function pushItem(kind, icon, mainHtml, sub, url, title) {
+      if (seenUrl.has(url)) return;
+      seenUrl.add(url);
+      omniPush(kind, icon, mainHtml, sub, url, title);
+    }
+
+    // --- 1. Закладки: «это у тебя сохранено» ---
+    for (const b of bms) {
+      const u = b.url || "";
+      const t = (b.title || "") + " " + u;
+      if (!t.toLowerCase().includes(query)) continue;
+      const title = b.title && b.title !== u ? b.title : u;
+      pushItem("bm", "⭐", omniHl(title, raw), hostOf(u), u, b.title || u);
+      if (omniItems.length >= 2) break;
+    }
+    // --- 2. История: «уже частично искал/открывал» ---
+    for (const v of hist) {
+      const u = v.url || "";
+      if (!u) continue;
+      const ul = u.toLowerCase();
+      const t = (v.title || "").toLowerCase();
+      if (!ul.includes(query) && !t.includes(query)) continue;
+      const title = v.title && v.title !== u ? v.title : u;
+      const mainTitle = omniHl(title, raw);
+      pushItem("hist", "🕘", mainTitle, hostOf(u), u, v.title || u);
+      if (omniItems.length >= 4) break;
+    }
+    // --- 3. «Что я мог хотеть»: продолжения доменов (для «голого» слова) ---
     if (bare) {
       const comp = new Set();
-      // домены из истории юзера
       for (const v of hist) {
         try {
           const h = new URL(v.url).hostname.replace(/^www\./, "");
           if (h.startsWith(query) && h.length > raw.length) comp.add(h);
         } catch {}
       }
-      // офлайн-словарь популярных
       for (const d of OMNI_DOMAINS) if (d.startsWith(query) && d !== raw) comp.add(d);
-      let n = 0;
       for (const h of comp) {
-        if (n >= 3) break;
         const url = "https://" + h + "/";
-        if (seenUrl.has(url)) continue;
-        seenUrl.add(url);
-        omniPush("want", "✨", omniEsc(raw) + '<span class="omni-comp">' + omniEsc(h.slice(raw.length)) + "</span>", "продолжение", url, h);
-        n++;
+        const mainHtml = omniEsc(raw) + '<span class="omni-comp">' + omniEsc(h.slice(raw.length)) + "</span>";
+        pushItem("want", "✨", mainHtml, t("продолжение"), url, h);
+        if (omniItems.length >= 5) break;
       }
     }
-    // --- 3. Прямой URL / поиск ---
-    if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw)) {
+    // --- 4. Прямой URL ---
+    if (wantUrlish) {
       const url = raw.includes("://") ? raw : "https://" + raw;
-      if (!seenUrl.has(url)) {
-        seenUrl.add(url);
-        omniPush("url", "🌐", omniEsc(raw), "открыть сайт", url, raw);
-      }
+      pushItem("url", "🌐", omniEsc(raw), t("открыть сайт"), url, raw);
     }
+    // --- 5. Поиск всегда последним (как у всех) ---
     const eng = (typeof getSearchEngine === "function") ? getSearchEngine() : "duckduckgo";
     const tpl = (typeof SEARCH_ENGINES !== "undefined" && SEARCH_ENGINES[eng]) || "https://duckduckgo.com/?q=";
     const surl = tpl + encodeURIComponent(raw);
-    if (!seenUrl.has(surl)) {
-      omniPush("search", "🔍", "Искать «" + omniEsc(raw) + "»", "поиск", surl, raw);
+    pushItem("search", "🔍", t("Искать") + " «" + omniEsc(raw) + "»", t("поиск"), surl, raw);
+    // Показываем максимум 5 вариантов (поиск всегда последний)
+    const lastIsSearch = !!omniItems.length && omniItems[omniItems.length - 1].kind === "search";
+    const searchItem = lastIsSearch ? omniItems[omniItems.length - 1] : null;
+    omniItems = omniItems.slice(0, 5);
+    if (searchItem && !omniItems.includes(searchItem)) {
+      omniItems[omniItems.length - 1] = searchItem;
     }
     if (!omniItems.length) { omniHide(); return; }
     if (omniIdx >= omniItems.length) omniIdx = -1;

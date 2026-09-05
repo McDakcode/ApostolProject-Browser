@@ -2989,6 +2989,7 @@ button { position: relative; overflow: hidden; }
   color: var(--accent);
   font-weight: 700;
 }
+.omni-item.omni-bm .omni-ic { color: #f5b84b; opacity: 1; filter: saturate(1.2); }
 .omni-item.omni-want .omni-ic { filter: saturate(1.6); }
 .omni-item.omni-search { color: var(--text-dim); }
 .omni-item.omni-search .omni-t { font-style: italic; }
